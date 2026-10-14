@@ -1,4 +1,4 @@
-// svg/viewport.go: zoom + pan plumbing for RasterMode.
+// viewport.go: zoom + pan plumbing for RasterMode.
 //
 // The viewport is described in normalized [0, 1] source-image coords:
 // (panX, panY) is the top-left corner of the visible rectangle and
@@ -6,7 +6,7 @@
 // as a fraction (rather than pixels) lets the viewport survive a
 // re-render at a different render-edge or cell-rect size.
 
-package svg
+package ntsvg
 
 import (
 	"image"

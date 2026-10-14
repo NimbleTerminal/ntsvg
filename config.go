@@ -1,11 +1,12 @@
-// svg/config.go: configuration, key bindings, modes, and resource limits.
+// config.go: configuration, key bindings, modes, and resource limits.
 
-package svg
+package ntsvg
 
 import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/lipgloss/v2"
-	"github.com/NimbleMarkets/ntcharts/v2/picture"
+	picture "nimbleterminal.dev/ntpicture"
+	"nimbleterminal.dev/ntsvg/stage"
 )
 
 // Mode selects how the current SVG is presented.
@@ -13,7 +14,7 @@ type Mode int8
 
 const (
 	// RasterMode rasterizes the SVG to a bitmap and renders it via
-	// picture.Model — half-block glyphs everywhere, Kitty graphics on
+	// ntpicture.Model — half-block glyphs everywhere, Kitty graphics on
 	// terminals that support them. This is the default: unlike PDF
 	// rasterization, the SVG rasterizer (oksvg/rasterx) is pure Go, so
 	// RasterMode works on every build target including WASM.
@@ -28,7 +29,7 @@ const (
 
 // RenderMode is the underlying picture protocol used by RasterMode.
 // Aliased so callers can reach picture's constants without importing
-// picture directly.
+// ntpicture directly.
 type RenderMode = picture.PictureMode
 
 const (
@@ -37,8 +38,9 @@ const (
 )
 
 // FitMode controls how the rasterized image is mapped onto the cell
-// rectangle. Re-exported from picture so callers can drive picture.Model
-// behavior (Contain / Fill / Cover) through svgview's API surface.
+// rectangle. Re-exported from ntpicture so callers can drive
+// picture.Model behavior (Contain / Fill / Cover) through ntsvg's API
+// surface.
 type FitMode = picture.FitMode
 
 const (
@@ -48,7 +50,7 @@ const (
 )
 
 // FitAnchor controls which edge or center is preserved when FitCover must
-// crop overflow. Re-exported from picture.
+// crop overflow. Re-exported from ntpicture.
 type FitAnchor = picture.FitAnchor
 
 const (
@@ -184,7 +186,7 @@ type Config struct {
 
 	// InitialPath, if set, queues a path-based load via the Cmd
 	// returned from Init(). Equivalent to calling SetSVG(InitialPath)
-	// after construction. Ignored when InitialData is also set.
+	// after construction. Ignored when InitialData or InitialStage is set.
 	InitialPath string
 
 	// InitialData, when non-nil, queues an in-memory load via the Cmd
@@ -200,6 +202,12 @@ type Config struct {
 	// (falls back to "embedded" when blank). No effect unless
 	// InitialData != nil.
 	InitialName string
+
+	// InitialStage, when non-nil and InitialData is nil, queues an
+	// in-memory load of the generated stage via the Cmd returned from
+	// Init(). Equivalent to calling ShowStage(InitialStage) after
+	// construction.
+	InitialStage *stage.Stage
 
 	// DefaultMode selects the initial mode (RasterMode if zero).
 	DefaultMode Mode

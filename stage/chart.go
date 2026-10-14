@@ -1,9 +1,9 @@
-// svg/chart.go: high-level chart helpers built on the Canvas
+// stage/chart.go: high-level chart helpers built on the Stage
 // primitives. A Chart collects one or more data series and renders them
-// as a bar or line chart Canvas — clean SVG you can hand straight to
-// Model.ShowCanvas or persist with WriteSVG.
+// as a bar or line chart Stage — clean SVG you can hand straight to
+// ntsvg.Model.ShowStage or persist with WriteSVG.
 
-package svg
+package stage
 
 import "fmt"
 
@@ -21,8 +21,8 @@ type Series struct {
 	Values []float64
 }
 
-// Chart accumulates series and renders them to a Canvas. Construct with
-// NewChart, configure fluently, then call BarCanvas or LineCanvas.
+// Chart accumulates series and renders them to a Stage. Construct with
+// NewChart, configure fluently, then call BarStage or LineStage.
 type Chart struct {
 	width, height float64
 	title         string
@@ -46,7 +46,7 @@ func NewChart(width, height float64) *Chart {
 // SetTitle sets the chart title drawn along the top.
 func (c *Chart) SetTitle(title string) *Chart { c.title = title; return c }
 
-// SetBackground sets the canvas background color ("" for transparent).
+// SetBackground sets the stage background color ("" for transparent).
 func (c *Chart) SetBackground(color string) *Chart { c.background = color; return c }
 
 // SetLabels sets the x-axis category labels.
@@ -126,11 +126,11 @@ func (p plot) h() float64 { return p.bottom - p.top }
 
 // frame draws the title, axes, y-value gridlines, and x labels common
 // to both chart kinds, returning the inner plot rectangle.
-func (c *Chart) frame(cv *Canvas, vmin, vmax float64) plot {
+func (c *Chart) frame(st *Stage, vmin, vmax float64) plot {
 	p := plot{left: 46, right: c.width - 12, top: 12, bottom: c.height - 28}
 	if c.title != "" {
 		p.top = 30
-		cv.Text(c.width/2, 20, c.title,
+		st.Text(c.width/2, 20, c.title,
 			Paint{Fill: "#222"}.WithFont("sans-serif", 14).WithAnchor("middle"))
 	}
 	if len(c.series) > 0 {
@@ -146,53 +146,53 @@ func (c *Chart) frame(cv *Canvas, vmin, vmax float64) plot {
 		f := float64(i) / ticks
 		y := p.bottom - f*p.h()
 		v := vmin + f*(vmax-vmin)
-		cv.Line(p.left, y, p.right, y, grid)
-		cv.Text(p.left-6, y+3, trimNum(v), label.WithAnchor("end"))
+		st.Line(p.left, y, p.right, y, grid)
+		st.Text(p.left-6, y+3, trimNum(v), label.WithAnchor("end"))
 	}
 	// Axis lines.
-	cv.Line(p.left, p.top, p.left, p.bottom, axis)
-	cv.Line(p.left, p.bottom, p.right, p.bottom, axis)
+	st.Line(p.left, p.top, p.left, p.bottom, axis)
+	st.Line(p.left, p.bottom, p.right, p.bottom, axis)
 
 	// X-axis category labels.
 	n := c.maxLen()
 	for i := 0; i < n && i < len(c.labels); i++ {
 		x := p.left + (float64(i)+0.5)/float64(n)*p.w()
-		cv.Text(x, p.bottom+14, c.labels[i], label.WithAnchor("middle"))
+		st.Text(x, p.bottom+14, c.labels[i], label.WithAnchor("middle"))
 	}
-	c.legend(cv, p)
+	c.legend(st, p)
 	return p
 }
 
 // legend draws series swatches down the right gutter.
-func (c *Chart) legend(cv *Canvas, p plot) {
+func (c *Chart) legend(st *Stage, p plot) {
 	x := p.right + 12
 	for i, s := range c.series {
 		y := p.top + float64(i)*16
-		cv.Rect(x, y, 10, 10, Fill(c.seriesColor(i)))
+		st.Rect(x, y, 10, 10, Fill(c.seriesColor(i)))
 		name := s.Name
 		if name == "" {
 			name = fmt.Sprintf("series %d", i+1)
 		}
-		cv.Text(x+14, y+9, name, Paint{Fill: "#333"}.WithFont("sans-serif", 9))
+		st.Text(x+14, y+9, name, Paint{Fill: "#333"}.WithFont("sans-serif", 9))
 	}
 }
 
-// yOf maps a data value to a canvas y coordinate within the plot.
+// yOf maps a data value to a stage y coordinate within the plot.
 func yOf(v, vmin, vmax float64, p plot) float64 {
 	return p.bottom - (v-vmin)/(vmax-vmin)*p.h()
 }
 
-// BarCanvas renders the chart as a grouped bar chart.
-func (c *Chart) BarCanvas() *Canvas {
-	cv := NewCanvas(c.width, c.height).Background(c.background)
+// BarStage renders the chart as a grouped bar chart Stage.
+func (c *Chart) BarStage() *Stage {
+	st := New(c.width, c.height).Background(c.background)
 	if c.title != "" {
-		cv.SetTitle(c.title)
+		st.SetTitle(c.title)
 	}
 	vmin, vmax := c.bounds(true)
-	p := c.frame(cv, vmin, vmax)
+	p := c.frame(st, vmin, vmax)
 	n := c.maxLen()
 	if n == 0 || len(c.series) == 0 {
-		return cv
+		return st
 	}
 	zero := yOf(0, vmin, vmax, p)
 	groupW := p.w() / float64(n)
@@ -209,24 +209,24 @@ func (c *Chart) BarCanvas() *Canvas {
 			if h < 0 { // negative value: bar grows downward
 				top, h = zero, -h
 			}
-			cv.Rect(gx+float64(si)*barW, top, barW*0.92, h, Fill(c.seriesColor(si)))
+			st.Rect(gx+float64(si)*barW, top, barW*0.92, h, Fill(c.seriesColor(si)))
 		}
 	}
-	return cv
+	return st
 }
 
-// LineCanvas renders the chart as a multi-series line chart with point
-// markers.
-func (c *Chart) LineCanvas() *Canvas {
-	cv := NewCanvas(c.width, c.height).Background(c.background)
+// LineStage renders the chart as a multi-series line chart Stage with
+// point markers.
+func (c *Chart) LineStage() *Stage {
+	st := New(c.width, c.height).Background(c.background)
 	if c.title != "" {
-		cv.SetTitle(c.title)
+		st.SetTitle(c.title)
 	}
 	vmin, vmax := c.bounds(false)
-	p := c.frame(cv, vmin, vmax)
+	p := c.frame(st, vmin, vmax)
 	n := c.maxLen()
 	if n == 0 {
-		return cv
+		return st
 	}
 	step := p.w() / float64(maxInt(n-1, 1))
 	for si, s := range c.series {
@@ -238,12 +238,12 @@ func (c *Chart) LineCanvas() *Canvas {
 				Y: yOf(v, vmin, vmax, p),
 			})
 		}
-		cv.Polyline(pts, Stroke(color, 2))
+		st.Polyline(pts, Stroke(color, 2))
 		for _, pt := range pts {
-			cv.Circle(pt.X, pt.Y, 3, Fill(color))
+			st.Circle(pt.X, pt.Y, 3, Fill(color))
 		}
 	}
-	return cv
+	return st
 }
 
 // trimNum formats an axis value compactly.

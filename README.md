@@ -1,22 +1,21 @@
-# ntcharts-svg — Terminal SVG viewer & vector canvas for Bubble Tea
+# ntsvg — Terminal SVG viewer & immediate-mode vector stage for Bubble Tea
 
 <p>
-    <a href="https://github.com/NimbleMarkets/ntcharts-svg/tags"><img src="https://img.shields.io/github/tag/NimbleMarkets/ntcharts-svg.svg" alt="Latest Release"></a>
-    <a href="https://pkg.go.dev/github.com/NimbleMarkets/ntcharts-svg?tab=doc"><img src="https://godoc.org/github.com/golang/gddo?status.svg" alt="GoDoc"></a>
-    <a href="https://github.com/NimbleMarkets/ntcharts-svg/blob/main/CODE_OF_CONDUCT.md"><img src="https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg" alt="Code Of Conduct"></a>
+    <a href="https://github.com/nimbleterminal/ntsvg/tags"><img src="https://img.shields.io/github/tag/nimbleterminal/ntsvg.svg" alt="Latest Release"></a>
+    <a href="https://pkg.go.dev/nimbleterminal.dev/ntsvg?tab=doc"><img src="https://godoc.org/github.com/golang/gddo?status.svg" alt="GoDoc"></a>
+    <a href="https://github.com/nimbleterminal/ntsvg/blob/main/CODE_OF_CONDUCT.md"><img src="https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg" alt="Code Of Conduct"></a>
 </p>
 
-`ntcharts-svg` is a [Bubble Tea](https://github.com/charmbracelet/bubbletea) widget that makes SVG documents first-class citizens in terminal UIs (and WASM/browser builds). It pairs [`oksvg`](https://github.com/srwiley/oksvg) + [`rasterx`](https://github.com/srwiley/rasterx) for **pure-Go** SVG rasterization with [`ntcharts/v2/picture`](https://github.com/NimbleMarkets/ntcharts) for image rendering — half-block glyphs anywhere, full-resolution Kitty graphics on terminals that support them (Kitty, Ghostty, WezTerm).
+`ntsvg` (`nimbleterminal.dev/ntsvg`) is a [Bubble Tea](https://github.com/charmbracelet/bubbletea) widget that makes SVG documents first-class citizens in terminal UIs (and WASM/browser builds). It pairs [`oksvg`](https://github.com/NimbleMarkets/oksvg) + [`rasterx`](https://github.com/srwiley/rasterx) for **pure-Go** SVG rasterization with [`ntpicture`](https://github.com/nimbleterminal/ntpicture) (`nimbleterminal.dev/ntpicture`) for image rendering — half-block glyphs anywhere, full-resolution Kitty graphics on terminals that support them (Kitty, Ghostty, WezTerm).
 
-[**Try out the live WASM demo.**](https://nimblemarkets.github.io/ntcharts-svg)
+[**Try out the live WASM demo.**](https://nimbleterminal.github.io/ntsvg)
 
-It is the sibling of [`ntcharts-pdf`](https://github.com/NimbleMarkets/ntcharts-pdf) and mirrors its architecture. The key difference: because the SVG rasterizer is pure Go, image rendering needs **no CGO, no system dependencies, and no JS bridge** — it works identically on native, browser-WASM, and WASI builds.
+Because the SVG rasterizer is pure Go, image rendering needs **no CGO, no system dependencies, and no JS bridge** — it works identically on native, browser-WASM, and WASI builds.
 
+The module provides two packages:
 
-The widget does double duty:
-
-- **View existing SVGs** — load any `.svg` file or in-memory bytes, rasterize, zoom, and pan.
-- **Generate vector graphics** — draw with an immediate-mode `Canvas` and chart helpers, export clean SVG (or PNG), and display the result in the same viewer.
+- **`nimbleterminal.dev/ntsvg`** — the terminal SVG viewer widget: load any `.svg` file, in-memory bytes, or generated `*stage.Stage`, rasterize, zoom, and pan.
+- **`nimbleterminal.dev/ntsvg/stage`** — a pure-Go, dependency-free immediate-mode vector stage and chart builder that emits standalone SVG markup (`ToSVG`, `Bytes`, `WriteTo`, `WriteSVG`).
 
 ## Quickstart
 
@@ -28,10 +27,10 @@ import (
     "os"
 
     tea "charm.land/bubbletea/v2"
-    "github.com/NimbleMarkets/ntcharts-svg/svg"
+    "nimbleterminal.dev/ntsvg"
 )
 
-type model struct{ sv svg.Model }
+type model struct{ sv ntsvg.Model }
 
 func (m model) Init() tea.Cmd { return m.sv.Init() }
 
@@ -50,7 +49,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() tea.View { return m.sv.View() }
 
 func main() {
-    sv := svg.NewWithConfig(svg.Config{InitialPath: os.Args[1]})
+    sv := ntsvg.NewWithConfig(ntsvg.Config{InitialPath: os.Args[1]})
     if _, err := tea.NewProgram(model{sv: sv}).Run(); err != nil {
         fmt.Println(err); os.Exit(1)
     }
@@ -70,7 +69,7 @@ and otherwise uses glyph rendering. Press `g` to choose the rendering mode manua
 
 ```sh
 task build-ex-svgview
-./bin/ntcharts-svgview path/to/your.svg   # or no argument for the embedded sample
+./bin/ntsvg-svgview path/to/your.svg   # or no argument for the embedded sample
 ```
 
 The same example compiles to WebAssembly and runs in the browser via [`booba`](https://github.com/NimbleMarkets/go-booba) — no JS bridge required, since the rasterizer is pure Go. Build and serve it locally:
@@ -81,7 +80,7 @@ task serve-wasm-site   # builds web/app.wasm, stages booba assets, serves at :80
 
 `task build-wasm-site` alone produces the deployable `web/` directory; the `.github/workflows/pages.yml` workflow publishes it to GitHub Pages on every push to `main`.
 
-The browser demo uses booba v0.9.2 and requests ntcharts' Kitty shared-memory
+The browser demo uses booba v0.9.2 and requests `ntpicture`'s Kitty shared-memory
 transport, passing raw RGBA frames without PNG encoding or base64 image payloads.
 It falls back to direct PNG when the browser bridge is unavailable. Native builds
 keep direct PNG transport. Library callers can opt in through
@@ -93,18 +92,17 @@ to release pending shared-memory frames.
 
 | Mode | What it does | Where it works |
 |---|---|---|
-| `svg.RasterMode` (default) | Rasterizes the SVG via a `Renderer` (default: `oksvg`/`rasterx`), fed to `ntcharts/v2/picture`. Supports zoom (`+`/`-` up to ×64) and pan (arrow keys when zoomed) | Everywhere — native, browser-WASM, WASI |
-| `svg.InfoMode` | Zero-dependency textual summary: view box, declared size, element-type histogram, embedded `<title>` / `<desc>` | Everywhere |
+| `ntsvg.RasterMode` (default) | Rasterizes the SVG via a `Renderer` (default: `oksvg`/`rasterx`), fed to `nimbleterminal.dev/ntpicture`. Supports zoom (`+`/`-` up to ×64) and pan (arrow keys when zoomed) | Everywhere — native, browser-WASM, WASI |
+| `ntsvg.InfoMode` | Zero-dependency textual summary: view box, declared size, element-type histogram, embedded `<title>` / `<desc>` | Everywhere |
 
-`sv.ToggleMode()` returns a `tea.Cmd` that swaps modes and re-renders. RasterMode internally uses `picture.PictureGlyph` (universal half-blocks) or `picture.PictureKitty` (high-resolution); switch between them with `sv.ToggleRenderMode()`.
-
-Unlike `ntcharts-pdf`, RasterMode is the default — the rasterizer is pure Go and always available, so there is no platform where image rendering silently degrades.
+`sv.ToggleMode()` returns a `tea.Cmd` that swaps modes and re-renders. RasterMode internally uses `ntpicture.PictureGlyph` (universal half-blocks) or `ntpicture.PictureKitty` (high-resolution); switch between them with `sv.ToggleRenderMode()`.
 
 ## Renderer
 
 ```go
 type Renderer interface {
     Render(maxW, maxH int) (image.Image, error)
+    RenderRegion(maxW, maxH int, nx, ny, nw, nh float64) (image.Image, error)
     ViewBox() (w, h float64)
     Close() error
 }
@@ -112,9 +110,9 @@ type Renderer interface {
 type RendererFactory func(name string, data []byte) (Renderer, error)
 ```
 
-The factory is **bytes-first**: the widget reads file contents once (subject to `Limits.MaxFileBytes`) and hands the bytes to the factory, so custom factories never have to implement their own file I/O. Hosts that already have the bytes — an `//go:embed` blob, an HTTP response, a generated `Canvas` — skip the path round-trip via `sv.SetSVGData(name, data)` or `Config.InitialData` / `InitialName`.
+The factory is **bytes-first**: the widget reads file contents once (subject to `Limits.MaxFileBytes`) and hands the bytes to the factory, so custom factories never have to implement their own file I/O. Hosts that already have the bytes — an `//go:embed` blob, an HTTP response, a generated `stage.Stage` — skip the path round-trip via `sv.SetSVGData(name, data)`, `sv.ShowStage(st)`, or `Config.InitialData` / `InitialName` / `InitialStage`.
 
-When `Config.RendererFactory` is nil, `NewWithConfig` installs `DefaultRendererFactory()`, backed by `oksvg`/`rasterx`. Bring-your-own renderers (resvg via CGO, a server-side rasterizer, a caching layer) plug in through the same interface. `Config.RenderEdge` (default 1024) sets the longer-edge resolution of the rasterized bitmap; zoom then crops into that bitmap.
+When `Config.RendererFactory` is nil, `NewWithConfig` installs `DefaultRendererFactory()`, backed by `oksvg`/`rasterx`. Bring-your-own renderers (resvg via CGO, a server-side rasterizer, a caching layer) plug in through the same interface. `Config.RenderEdge` (default 1024) sets the longer-edge resolution of the rasterized bitmap; zoom then re-rasterizes the sub-region via `RenderRegion`.
 
 ### Loading APIs
 
@@ -122,7 +120,7 @@ When `Config.RendererFactory` is nil, `NewWithConfig` installs `DefaultRendererF
 |---|---|
 | `sv.SetSVG(path)` / `Config.InitialPath` | SVG is on disk; widget reads it once (`Limits.MaxFileBytes` enforced via `os.Stat`) |
 | `sv.SetSVGData(name, data)` / `Config.InitialData` + `InitialName` | SVG bytes already in memory (embedded, fetched, generated) |
-| `sv.ShowCanvas(c)` | Display a `*svg.Canvas` you drew with the immediate-mode API |
+| `sv.ShowStage(st)` / `Config.InitialStage` | Display a `*stage.Stage` you drew with `nimbleterminal.dev/ntsvg/stage` |
 | `sv.SetImage(img)` | Install a pre-rasterized `image.Image`, bypassing the `Renderer` entirely |
 
 ### Renderer state introspection
@@ -130,40 +128,45 @@ When `Config.RendererFactory` is nil, `NewWithConfig` installs `DefaultRendererF
 - `sv.HasRenderer() bool` — true when the factory produced a Renderer for the current document.
 - `sv.RendererErr() error` — the most recent factory error, persisted for the document's lifetime (cleared on the next load). InfoMode still works; surface this to explain why RasterMode is unavailable.
 
-## Immediate-mode Canvas
+## Immediate-mode Vector Stage (`nimbleterminal.dev/ntsvg/stage`)
 
-`Canvas` is a self-contained, pure-Go SVG writer — draw with chainable primitives, then export clean SVG, a PNG, or an `image.Image`.
+`stage.Stage` is a self-contained, pure-Go SVG writer with zero external dependencies — draw with chainable primitives, then export clean SVG or rasterize via `ntsvg`:
 
 ```go
-c := svg.NewCanvas(200, 120).Background("white")
-c.Circle(60, 60, 40, svg.Fill("#4e79a7"))
-c.Line(0, 0, 200, 120, svg.Stroke("#e15759", 3))
-c.Text(100, 110, "hello", svg.Paint{}.WithFont("sans-serif", 12).WithAnchor("middle"))
+import (
+    "nimbleterminal.dev/ntsvg"
+    "nimbleterminal.dev/ntsvg/stage"
+)
 
-svgText := c.ToSVG()              // standalone SVG markup
-_ = c.WriteSVG("out.svg")          // write a .svg file
-_ = c.WritePNG("out.png", 800, 600) // rasterize to PNG
-img, _ := c.ToImage(800, 600)      // rasterize to image.Image
+st := stage.New(200, 120).Background("white")
+st.Circle(60, 60, 40, stage.Fill("#4e79a7"))
+st.Line(0, 0, 200, 120, stage.Stroke("#e15759", 3))
+st.Text(100, 110, "hello", stage.Paint{}.WithFont("sans-serif", 12).WithAnchor("middle"))
+
+svgText := st.ToSVG()                              // standalone SVG markup
+_ = st.WriteSVG("out.svg")                         // write a .svg file
+_ = ntsvg.WriteStagePNG("out.png", st, 800, 600)   // rasterize to PNG
+img, _ := ntsvg.RasterizeStage(st, 800, 600)       // rasterize to image.Image
 ```
 
-Primitives: `Line`, `Rect`, `RoundRect`, `Circle`, `Ellipse`, `Polyline`, `Polygon`, `Path`, `Text`, and `Raw` for an escape hatch. `Paint` carries fill / stroke / opacity / dash / font, with fluent `With*` builders and the `Fill` / `Stroke` constructors.
+Primitives: `Line`, `Rect`, `RoundRect`, `Circle`, `Ellipse`, `Polyline`, `Polygon`, `Path`, `Text`, and `Raw` for an escape hatch. `Paint` carries fill / stroke / opacity / dash / linecap / font, with fluent `With*` builders and the `Fill` / `Stroke` constructors.
 
 ### Chart helpers
 
-`Chart` builds bar and line charts on top of the `Canvas`:
+`stage.Chart` builds bar and line charts on top of `stage.Stage`:
 
 ```go
-canvas := svg.NewChart(360, 240).
+st := stage.NewChart(360, 240).
     SetTitle("Quarterly Revenue").
     SetLabels("Q1", "Q2", "Q3", "Q4").
     AddSeries("2025", "", 12, 19, 14, 23).
     AddSeries("2026", "", 17, 15, 21, 28).
-    BarCanvas() // or LineCanvas()
+    BarStage() // or LineStage()
 
-cmd := mySvgModel.ShowCanvas(canvas) // render it straight into the viewer
+cmd := mySvgModel.ShowStage(st) // render it straight into the viewer
 ```
 
-This is the "generate chart → SVG → display" loop the `c` key in the example demonstrates.
+This is the "generate chart → Stage → SVG → display" loop the `c` key in the example demonstrates.
 
 ## Resource limits (`Config.Limits`)
 
@@ -180,21 +183,22 @@ Set any field to `-1` to disable that cap for trusted input; zero uses the defau
 
 ### Sanitizing SVG-derived strings
 
-SVG titles, descriptions, element names, and error messages can carry C0/C1 control sequences and Unicode bidi format chars ("Trojan Source"-style attacks). The widget's own status text is already sanitized. For host-displayed strings derived from the SVG — `Model.Title()`, `Model.Name()` for in-memory docs, `RendererErr().Error()` — use `svg.SanitizeForTerminal(s string) string`, which drops anything outside Unicode's printable categories and folds newlines / tabs to single spaces.
+SVG titles, descriptions, element names, and error messages can carry C0/C1 control sequences and Unicode bidi format chars ("Trojan Source"-style attacks). The widget's own status text is already sanitized. For host-displayed strings derived from the SVG — `Model.Title()`, `Model.Name()` for in-memory docs, `RendererErr().Error()` — use `ntsvg.SanitizeForTerminal(s string) string`, which drops anything outside Unicode's printable categories and folds newlines / tabs to single spaces.
 
 ## Known caveats
 
 - **WASM dependencies.** `wasm.work` selects the Bubble Tea fork with browser support; native builds use the upstream dependency in `go.mod`. The WASM tasks and CI select this workspace automatically; manual builds need `GOWORK="$PWD/wasm.work" GOOS=js GOARCH=wasm go build -o web/app.wasm ./examples/svgview/`.
+- **Pre-release `ntpicture` replacement.** Until `nimbleterminal.dev/ntpicture` is tagged and published, `go.mod` and `wasm.work` use a sibling `replace nimbleterminal.dev/ntpicture => ../ntpicture` directive.
 - **Zoom is vector-sharp.** With a document `Renderer` attached, `ZoomIn` / `PanLeft` (etc.) re-rasterize the viewport sub-rectangle via `Renderer.RenderRegion`, so zoomed-in views stay crisp at any depth rather than upscaling a fixed bitmap. Zoom 0 reuses the full-document bitmap (no re-render); each zoom/pan keypress at depth costs one rasterize. A host bitmap installed via `SetImage` has no renderer, so it still crops (chunky-pixel inspection) — there are no vectors to re-rasterize.
 - **`oksvg` supports a broad but not exhaustive slice of SVG.** Filters, advanced gradients, embedded fonts, and CSS-heavy documents may render approximately or skip elements (the parser runs in ignore-errors mode). For pixel-perfect fidelity, wire a custom `RendererFactory` around a stricter rasterizer.
-- **The immediate-mode `Canvas` is a writer, not a layout engine.** It emits exactly the elements you draw. Text is not measured — `text-anchor` positions runs, but you supply the coordinates. This keeps `Canvas` dependency-free and WASM-safe.
-- **`WriteSVG` / `WritePNG` do filesystem I/O** and will fail at runtime under `GOOS=js`. Use `ToSVG` / `Bytes` / `ToImage` in the browser.
-- **Kitty placement composition through lipgloss** is best-effort. `picture.Model.View()` embeds the Kitty placement escapes directly in the rendered string, which composes cleanly inside `lipgloss.JoinVertical` and basic borders but may misbehave under styles that rewrite the content. Glyph mode has no such caveat.
+- **The immediate-mode `stage.Stage` is a writer, not a layout engine.** It emits exactly the elements you draw. Text is not measured — `text-anchor` positions runs, but you supply the coordinates. This keeps `stage` dependency-free and WASM-safe.
+- **`WriteSVG` / `WritePNG` / `WriteStagePNG` do filesystem I/O** and will fail at runtime under `GOOS=js`. Use `ToSVG` / `Bytes` / `WriteTo` / `RasterizeStage` in the browser.
+- **Kitty placement composition through lipgloss** is best-effort. `ntpicture.Model.View()` embeds the Kitty placement escapes directly in the rendered string, which composes cleanly inside `lipgloss.JoinVertical` and basic borders. Glyph mode has no such caveat.
 - **Vibe coded.** This comment was inserted by a human.
 
 ## License
 
-Thanks to the [`oksvg`](https://github.com/srwiley/oksvg) and [`rasterx`](https://github.com/srwiley/rasterx) libraries and their authors.  We are currently using [a fork]](https://github.com/NimbleMarkets/oksvg/tree/nm) of their `oksvg` library.
+Thanks to the [`oksvg`](https://github.com/srwiley/oksvg) and [`rasterx`](https://github.com/srwiley/rasterx) libraries and their authors. We are currently using [a fork](https://github.com/NimbleMarkets/oksvg/tree/nm) of their `oksvg` library.
 
 [MIT License](./LICENSE.txt) — Copyright (c) 2026 [Neomantra Corp](https://www.neomantra.com).
 

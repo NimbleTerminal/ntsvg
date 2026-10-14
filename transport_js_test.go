@@ -1,13 +1,13 @@
 //go:build js && wasm
 
-package svg
+package ntsvg
 
 import (
 	"image"
 	"syscall/js"
 	"testing"
 
-	"github.com/NimbleMarkets/ntcharts/v2/picture"
+	picture "nimbleterminal.dev/ntpicture"
 )
 
 func TestBrowserSharedMemoryLifecycle(t *testing.T) {

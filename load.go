@@ -1,14 +1,13 @@
-// svg/load.go: SVG loading, lightweight metadata extraction, and the
+// load.go: SVG loading, lightweight metadata extraction, and the
 // async messages the Model consumes.
 //
 // Loading is split in two: a streaming XML scan collects the document
 // summary shown in InfoMode (view box, element histogram, titles), and
 // the configured RendererFactory parses the bytes for RasterMode. The
 // two are independent — a document whose rasterizer init fails still
-// shows its InfoMode summary, mirroring ntcharts-pdf's "TextMode keeps
-// working when ImageMode degrades" contract.
+// shows its InfoMode summary.
 
-package svg
+package ntsvg
 
 import (
 	"bytes"

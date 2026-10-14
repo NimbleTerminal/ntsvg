@@ -1,4 +1,4 @@
-# ntcharts-svg - Copyright (c) 2026 Neomantra Corp.
+# ntsvg - Copyright (c) 2026 Neomantra Corp.
 
 version: '3'
 
@@ -61,7 +61,7 @@ tasks:
     deps:
       - clean-wasm-site
     cmds:
-      - rm -f bin/ntcharts-svgview
+      - rm -f bin/ntsvg-svgview bin/ntcharts-svgview
       - rm -rf .task
 
 ###############################################################################
@@ -77,22 +77,23 @@ tasks:
     deps:
       - go-tidy
     cmds:
-      - go build -o bin/ntcharts-svgview ./examples/svgview
+      - go build -o bin/ntsvg-svgview ./examples/svgview
     sources:
-      - svg/**/*.go
+      - '*.go'
+      - stage/*.go
       - examples/svgview/*.go
       - examples/svgview/testdata/sample.svg
       - go.mod
     generates:
-      - bin/ntcharts-svgview
+      - bin/ntsvg-svgview
 
 ###############################################################################
 # Demo website via booba
 #
 # The default rasterizer (oksvg/rasterx) is pure Go, so the svgview
-# example — unlike the sibling ntcharts-pdf widget — needs no JS bridge
-# to render images in the browser. booba-assets stages wasm_exec.js and
-# the booba terminal runtime into web/ alongside the WASM binary.
+# example needs no JS bridge to render images in the browser.
+# booba-assets stages wasm_exec.js and the booba terminal runtime into
+# web/ alongside the WASM binary.
 
   build-wasm-site:
     desc: 'Build the WASM demo site into web/'
@@ -104,15 +105,15 @@ tasks:
       - web/app.wasm
 
   serve-wasm-site:
-    desc: 'Serve web/ at http://localhost:8000/ntcharts-svg/ (matches GH Pages prefix)'
+    desc: 'Serve web/ at http://localhost:8000/ntsvg/ (matches GH Pages prefix)'
     deps: [build-wasm-site]
     vars:
-      SERVE_DIR: /tmp/ntcharts-svg-site
+      SERVE_DIR: /tmp/ntsvg-site
     cmds:
       - mkdir -p {{.SERVE_DIR}}
-      - rm -f {{.SERVE_DIR}}/ntcharts-svg
-      - ln -sfn "$(pwd)/web" {{.SERVE_DIR}}/ntcharts-svg
-      - echo 'Serving at http://localhost:8000/ntcharts-svg/'
+      - rm -f {{.SERVE_DIR}}/ntsvg
+      - ln -sfn "$(pwd)/web" {{.SERVE_DIR}}/ntsvg
+      - echo 'Serving at http://localhost:8000/ntsvg/'
       - cd {{.SERVE_DIR}} && python3 -m http.server 8000
 
   clean-wasm-site:

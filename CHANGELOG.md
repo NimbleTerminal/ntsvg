@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Unreleased
+
+ * **Breaking:** rename module from `github.com/NimbleMarkets/ntcharts-svg` to `nimbleterminal.dev/ntsvg` (`package ntsvg` at the module root).
+ * **Breaking:** extract the immediate-mode vector `Canvas` into `nimbleterminal.dev/ntsvg/stage` (`stage.Stage`, `stage.New`, `Chart.BarStage`, `Chart.LineStage`), keeping `stage` stdlib-only and pairing with `ntsvg.Model.ShowStage`, `ntsvg.RasterizeStage`, and `ntsvg.WriteStagePNG`.
+ * Migrate terminal picture rendering from `github.com/NimbleMarkets/ntcharts/v2/picture` to `nimbleterminal.dev/ntpicture`.
+
 ## v0.4.0 (2026-10-14)
 
  * Move the browser Bubble Tea `replace` directive out of `go.mod` into `wasm.work` so native consumers use upstream `charm.land/bubbletea/v2` v2.1.0.

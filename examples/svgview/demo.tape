@@ -11,7 +11,7 @@ Set Width 1000
 Set Height 640
 Set Padding 20
 
-Type "./bin/ntcharts-svgview" Enter
+Type "./bin/ntsvg-svgview" Enter
 Sleep 2s
 
 # Zoom into the rasterized sample.

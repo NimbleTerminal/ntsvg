@@ -1,4 +1,4 @@
-// svg/sanitize.go: terminal-safe string sanitization.
+// sanitize.go: terminal-safe string sanitization.
 //
 // SVG-derived text (titles, descriptions, error messages) and host-
 // supplied paths reach the user via terminal writes. Without filtering,
@@ -15,7 +15,7 @@
 // and tabs with single spaces so a multi-line malicious string can't
 // fan out across the status bar.
 
-package svg
+package ntsvg
 
 import (
 	"strings"

@@ -1,14 +1,13 @@
-// svg/render.go: the Renderer abstraction and the default oksvg/rasterx
+// render.go: the Renderer abstraction and the default oksvg/rasterx
 // rasterizer.
 //
 // The widget owns a per-document Renderer whose lifetime is tied to the
 // loaded SVG — SetSVG closes the previous one and opens a new one via
-// the configured RendererFactory. Unlike the sibling ntcharts-pdf
-// widget, the default backend (oksvg + rasterx) is pure Go with no
-// system dependencies, so RasterMode works on every build target,
-// including GOOS=js and GOOS=wasip1.
+// the configured RendererFactory. The default backend (oksvg + rasterx)
+// is pure Go with no system dependencies, so RasterMode works on every
+// build target, including GOOS=js and GOOS=wasip1.
 
-package svg
+package ntsvg
 
 import (
 	"bytes"

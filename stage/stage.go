@@ -1,25 +1,24 @@
-// svg/canvas.go: an immediate-mode vector drawing surface that emits
-// clean, standalone SVG.
+// Package stage provides an immediate-mode vector drawing surface that
+// emits clean, standalone SVG.
 //
-// Canvas is a self-contained pure-Go SVG writer — no external rendering
-// dependency, so it compiles for every target the widget supports. Draw
-// with the chainable primitive methods (Line, Rect, Circle, Path,
-// Text…), then ToSVG / Bytes for the markup or ToImage / WriteSVG (see
-// export.go) to rasterize or persist. ShowCanvas on a Model wires a
-// finished Canvas straight into the viewer.
-//
-// Higher-level chart helpers (bar / line / axes) build on these
-// primitives in chart.go.
-
-package svg
+// Stage is a self-contained pure-Go SVG writer with no terminal, Bubble Tea,
+// or rasterizer dependencies, so it compiles for every Go target including
+// GOOS=js and GOOS=wasip1. Draw with chainable primitive methods (Line,
+// Rect, Circle, Path, Text, …), then call ToSVG, String, Bytes, WriteTo,
+// or WriteSVG. Pass a *Stage to ntsvg.Model.ShowStage to display it in the
+// terminal viewer, or to ntsvg.RasterizeStage / ntsvg.WriteStagePNG to
+// rasterize it.
+package stage
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"strconv"
 	"strings"
 )
 
-// Point is an (x, y) coordinate in canvas user units.
+// Point is an (x, y) coordinate in stage user units.
 type Point struct{ X, Y float64 }
 
 // Paint describes how a shape is filled and stroked. The zero value is
@@ -59,6 +58,12 @@ func (p Paint) WithStroke(color string, width float64) Paint {
 // WithOpacity returns a copy of p with opacity set (0 < o <= 1).
 func (p Paint) WithOpacity(o float64) Paint { p.Opacity = o; return p }
 
+// WithDash returns a copy of p with the stroke-dasharray pattern set.
+func (p Paint) WithDash(dash string) Paint { p.Dash = dash; return p }
+
+// WithLineCap returns a copy of p with the stroke-linecap set.
+func (p Paint) WithLineCap(cap string) Paint { p.LineCap = cap; return p }
+
 // WithFont returns a copy of p with the text family and size set.
 func (p Paint) WithFont(family string, size float64) Paint {
 	p.FontFamily, p.FontSize = family, size
@@ -68,112 +73,114 @@ func (p Paint) WithFont(family string, size float64) Paint {
 // WithAnchor returns a copy of p with the text anchor set.
 func (p Paint) WithAnchor(anchor string) Paint { p.TextAnchor = anchor; return p }
 
-// Canvas is an immediate-mode SVG drawing surface. Construct with
-// NewCanvas; every draw method appends an element and returns the
-// Canvas for chaining. Canvas is not safe for concurrent use.
-type Canvas struct {
+// Stage is an immediate-mode SVG drawing surface. Construct with New;
+// every draw method appends an element and returns the Stage for
+// chaining. Stage is not safe for concurrent use.
+type Stage struct {
 	w, h  float64
 	bg    string
 	title string
 	elems []string
 }
 
-// NewCanvas returns a Canvas measuring width × height user units. Non-
-// positive dimensions are clamped to 1 so the emitted SVG is always
-// well-formed.
-func NewCanvas(width, height float64) *Canvas {
+// New returns a Stage measuring width × height user units. Non-positive
+// dimensions are clamped to 1 so the emitted SVG is always well-formed.
+func New(width, height float64) *Stage {
 	if width <= 0 {
 		width = 1
 	}
 	if height <= 0 {
 		height = 1
 	}
-	return &Canvas{w: width, h: height}
+	return &Stage{w: width, h: height}
 }
 
-// Size reports the canvas dimensions in user units.
-func (c *Canvas) Size() (width, height float64) { return c.w, c.h }
+// Size reports the stage dimensions in user units.
+func (s *Stage) Size() (width, height float64) { return s.w, s.h }
+
+// Title returns the document <title> set via SetTitle, or "".
+func (s *Stage) Title() string { return s.title }
 
 // Background sets a solid background fill drawn behind every element.
-// Pass "" to clear it (the default — a transparent canvas).
-func (c *Canvas) Background(color string) *Canvas { c.bg = color; return c }
+// Pass "" to clear it (the default — a transparent stage).
+func (s *Stage) Background(color string) *Stage { s.bg = color; return s }
 
 // SetTitle sets the document <title>, surfaced by the viewer's InfoMode.
-func (c *Canvas) SetTitle(title string) *Canvas { c.title = title; return c }
+func (s *Stage) SetTitle(title string) *Stage { s.title = title; return s }
 
 // Line draws a straight segment from (x1,y1) to (x2,y2). A Paint with no
 // stroke defaults to a 1-unit black stroke so the line is always
 // visible.
-func (c *Canvas) Line(x1, y1, x2, y2 float64, p Paint) *Canvas {
+func (s *Stage) Line(x1, y1, x2, y2 float64, p Paint) *Stage {
 	if p.Stroke == "" || p.Stroke == "none" {
 		p.Stroke, p.StrokeWidth = "black", maxF(p.StrokeWidth, 1)
 	}
-	c.elems = append(c.elems, fmt.Sprintf(`<line x1="%s" y1="%s" x2="%s" y2="%s"%s/>`,
+	s.elems = append(s.elems, fmt.Sprintf(`<line x1="%s" y1="%s" x2="%s" y2="%s"%s/>`,
 		num(x1), num(y1), num(x2), num(y2), p.attrs("none")))
-	return c
+	return s
 }
 
 // Rect draws an axis-aligned rectangle with its top-left corner at (x,y).
-func (c *Canvas) Rect(x, y, width, height float64, p Paint) *Canvas {
-	c.elems = append(c.elems, fmt.Sprintf(`<rect x="%s" y="%s" width="%s" height="%s"%s/>`,
+func (s *Stage) Rect(x, y, width, height float64, p Paint) *Stage {
+	s.elems = append(s.elems, fmt.Sprintf(`<rect x="%s" y="%s" width="%s" height="%s"%s/>`,
 		num(x), num(y), num(width), num(height), p.attrs("black")))
-	return c
+	return s
 }
 
 // RoundRect draws a rectangle with corner radii (rx, ry).
-func (c *Canvas) RoundRect(x, y, width, height, rx, ry float64, p Paint) *Canvas {
-	c.elems = append(c.elems, fmt.Sprintf(
+func (s *Stage) RoundRect(x, y, width, height, rx, ry float64, p Paint) *Stage {
+	s.elems = append(s.elems, fmt.Sprintf(
 		`<rect x="%s" y="%s" width="%s" height="%s" rx="%s" ry="%s"%s/>`,
 		num(x), num(y), num(width), num(height), num(rx), num(ry), p.attrs("black")))
-	return c
+	return s
 }
 
 // Circle draws a circle of radius r centered at (cx,cy).
-func (c *Canvas) Circle(cx, cy, r float64, p Paint) *Canvas {
-	c.elems = append(c.elems, fmt.Sprintf(`<circle cx="%s" cy="%s" r="%s"%s/>`,
+func (s *Stage) Circle(cx, cy, r float64, p Paint) *Stage {
+	s.elems = append(s.elems, fmt.Sprintf(`<circle cx="%s" cy="%s" r="%s"%s/>`,
 		num(cx), num(cy), num(r), p.attrs("black")))
-	return c
+	return s
 }
 
 // Ellipse draws an ellipse with radii (rx,ry) centered at (cx,cy).
-func (c *Canvas) Ellipse(cx, cy, rx, ry float64, p Paint) *Canvas {
-	c.elems = append(c.elems, fmt.Sprintf(`<ellipse cx="%s" cy="%s" rx="%s" ry="%s"%s/>`,
+func (s *Stage) Ellipse(cx, cy, rx, ry float64, p Paint) *Stage {
+	s.elems = append(s.elems, fmt.Sprintf(`<ellipse cx="%s" cy="%s" rx="%s" ry="%s"%s/>`,
 		num(cx), num(cy), num(rx), num(ry), p.attrs("black")))
-	return c
+	return s
 }
 
 // Polyline draws an open path through the given points. With no stroke
 // the Paint defaults to a 1-unit black stroke and no fill.
-func (c *Canvas) Polyline(pts []Point, p Paint) *Canvas {
+func (s *Stage) Polyline(pts []Point, p Paint) *Stage {
 	if p.Stroke == "" || p.Stroke == "none" {
 		p.Stroke, p.StrokeWidth = "black", maxF(p.StrokeWidth, 1)
 	}
 	if p.Fill == "" {
 		p.Fill = "none"
 	}
-	c.elems = append(c.elems, fmt.Sprintf(`<polyline points="%s"%s/>`,
+	s.elems = append(s.elems, fmt.Sprintf(`<polyline points="%s"%s/>`,
 		pointList(pts), p.attrs("none")))
-	return c
+	return s
 }
 
 // Polygon draws a closed shape through the given points.
-func (c *Canvas) Polygon(pts []Point, p Paint) *Canvas {
-	c.elems = append(c.elems, fmt.Sprintf(`<polygon points="%s"%s/>`,
+func (s *Stage) Polygon(pts []Point, p Paint) *Stage {
+	s.elems = append(s.elems, fmt.Sprintf(`<polygon points="%s"%s/>`,
 		pointList(pts), p.attrs("black")))
-	return c
+	return s
 }
 
 // Path draws a raw SVG path-data string ("M0 0 L10 10 …"). The caller
 // owns the geometry; the data string is attribute-escaped but not
 // otherwise validated.
-func (c *Canvas) Path(d string, p Paint) *Canvas {
-	c.elems = append(c.elems, fmt.Sprintf(`<path d="%s"%s/>`, escAttr(d), p.attrs("black")))
-	return c
+func (s *Stage) Path(d string, p Paint) *Stage {
+	s.elems = append(s.elems, fmt.Sprintf(`<path d="%s"%s/>`, escAttr(d), p.attrs("black")))
+	return s
 }
 
 // Text draws a text run anchored at (x,y). The string content is XML-
 // escaped. Font family / size / anchor come from the Paint.
-func (c *Canvas) Text(x, y float64, s string, p Paint) *Canvas {
+func (s *Stage) Text(x, y float64, text string, p Paint) *Stage {
 	attrs := p.attrs("black")
 	if p.FontFamily != "" {
 		attrs += ` font-family="` + escAttr(p.FontFamily) + `"`
@@ -184,35 +191,35 @@ func (c *Canvas) Text(x, y float64, s string, p Paint) *Canvas {
 	if p.TextAnchor != "" {
 		attrs += ` text-anchor="` + escAttr(p.TextAnchor) + `"`
 	}
-	c.elems = append(c.elems, fmt.Sprintf(`<text x="%s" y="%s"%s>%s</text>`,
-		num(x), num(y), attrs, escText(s)))
-	return c
+	s.elems = append(s.elems, fmt.Sprintf(`<text x="%s" y="%s"%s>%s</text>`,
+		num(x), num(y), attrs, escText(text)))
+	return s
 }
 
 // Raw appends a pre-formed SVG fragment verbatim. An escape hatch for
 // elements the typed API doesn't cover; the caller is responsible for
 // the fragment's well-formedness.
-func (c *Canvas) Raw(fragment string) *Canvas {
-	c.elems = append(c.elems, fragment)
-	return c
+func (s *Stage) Raw(fragment string) *Stage {
+	s.elems = append(s.elems, fragment)
+	return s
 }
 
-// ToSVG renders the canvas to a standalone SVG document string.
-func (c *Canvas) ToSVG() string {
+// ToSVG renders the stage to a standalone SVG document string.
+func (s *Stage) ToSVG() string {
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
 	b.WriteString(fmt.Sprintf(
 		`<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="%s" viewBox="0 0 %s %s">`,
-		num(c.w), num(c.h), num(c.w), num(c.h)))
+		num(s.w), num(s.h), num(s.w), num(s.h)))
 	b.WriteByte('\n')
-	if c.title != "" {
-		b.WriteString("  <title>" + escText(c.title) + "</title>\n")
+	if s.title != "" {
+		b.WriteString("  <title>" + escText(s.title) + "</title>\n")
 	}
-	if c.bg != "" {
+	if s.bg != "" {
 		b.WriteString(fmt.Sprintf("  <rect x=\"0\" y=\"0\" width=\"%s\" height=\"%s\" fill=\"%s\"/>\n",
-			num(c.w), num(c.h), escAttr(c.bg)))
+			num(s.w), num(s.h), escAttr(s.bg)))
 	}
-	for _, e := range c.elems {
+	for _, e := range s.elems {
 		b.WriteString("  ")
 		b.WriteString(e)
 		b.WriteByte('\n')
@@ -221,8 +228,23 @@ func (c *Canvas) ToSVG() string {
 	return b.String()
 }
 
-// Bytes renders the canvas to SVG as a byte slice.
-func (c *Canvas) Bytes() []byte { return []byte(c.ToSVG()) }
+// String renders the stage to a standalone SVG document string,
+// implementing fmt.Stringer.
+func (s *Stage) String() string { return s.ToSVG() }
+
+// Bytes renders the stage to SVG as a byte slice.
+func (s *Stage) Bytes() []byte { return []byte(s.ToSVG()) }
+
+// WriteTo writes the SVG document to w, implementing io.WriterTo.
+func (s *Stage) WriteTo(w io.Writer) (int64, error) {
+	n, err := io.WriteString(w, s.ToSVG())
+	return int64(n), err
+}
+
+// WriteSVG writes the stage to path as a standalone .svg file (0644).
+func (s *Stage) WriteSVG(path string) error {
+	return os.WriteFile(path, s.Bytes(), 0o644)
+}
 
 // attrs builds the shared presentation attributes for one element.
 // defaultFill is used when Paint.Fill is empty.
@@ -288,6 +310,13 @@ func escText(s string) string {
 }
 
 func maxF(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func maxInt(a, b int) int {
 	if a > b {
 		return a
 	}

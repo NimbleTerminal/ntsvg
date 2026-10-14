@@ -1,8 +1,8 @@
-// svg/info.go: the InfoMode renderer — a zero-dependency textual
+// info.go: the InfoMode renderer — a zero-dependency textual
 // summary of the loaded document, shown when RasterMode is off, while a
 // raster is pending, or when the rasterizer is unavailable.
 
-package svg
+package ntsvg
 
 import (
 	"fmt"

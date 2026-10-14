@@ -1,28 +1,22 @@
-// Package svg is a Bubble Tea v2 widget that makes SVG documents
+// Package ntsvg is a Bubble Tea v2 widget that makes SVG documents
 // first-class citizens in terminal UIs (and WASM/browser builds). It
 // offers two modes:
 //
 //   - RasterMode rasterizes the SVG via a pluggable Renderer (the
 //     default is oksvg/rasterx — pure Go, no CGO) and feeds the bitmap
-//     to ntcharts/v2/picture, which emits Kitty graphics when the
-//     terminal supports them and falls back to half-block glyphs
+//     to nimbleterminal.dev/ntpicture, which emits Kitty graphics when
+//     the terminal supports them and falls back to half-block glyphs
 //     otherwise. Zoom (up to ×64) and pan inspect the rasterized pixels.
 //   - InfoMode shows a zero-dependency textual summary of the document:
 //     its view box, an element-type histogram, and any embedded title.
 //
-// Because the default rasterizer is pure Go, RasterMode — unlike the
-// sibling ntcharts-pdf widget's ImageMode — works on every build
-// target, including GOOS=js and GOOS=wasip1.
+// Because the default rasterizer is pure Go, RasterMode works on every
+// build target, including GOOS=js and GOOS=wasip1.
 //
-// The widget also drives an immediate-mode vector Canvas (see canvas.go)
-// for generating charts and diagrams as clean SVG; ShowCanvas wires a
-// Canvas straight into the viewer.
-//
-// Mirrors the wrapping idioms of ntcharts-pdf/pdfview: value-receiver
-// Update returning (Model, tea.Cmd), View returning a tea.View so Kitty
-// graphics ride through, and a KeyMap a host program can override
-// field-by-field.
-package svg
+// Companion subpackage nimbleterminal.dev/ntsvg/stage provides an
+// immediate-mode vector Stage for generating charts and diagrams as
+// clean SVG; ShowStage wires a *stage.Stage straight into the viewer.
+package ntsvg
 
 import (
 	"fmt"
@@ -31,10 +25,10 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/NimbleMarkets/ntcharts/v2/picture"
+	picture "nimbleterminal.dev/ntpicture"
 )
 
-// Model is the svgview widget. Use New or NewWithConfig to construct.
+// Model is the ntsvg viewer widget. Use New or NewWithConfig to construct.
 type Model struct {
 	cfg   Config
 	keys  KeyMap
@@ -101,6 +95,16 @@ func NewWithConfig(cfg Config) Model {
 	if cfg.RendererFactory == nil {
 		cfg.RendererFactory = DefaultRendererFactoryWithLimits(cfg.Limits)
 	}
+	if cfg.InitialData == nil && cfg.InitialStage != nil {
+		cfg.InitialData = cfg.InitialStage.Bytes()
+		if cfg.InitialName == "" {
+			if title := cfg.InitialStage.Title(); title != "" {
+				cfg.InitialName = title
+			} else {
+				cfg.InitialName = "stage.svg"
+			}
+		}
+	}
 	// Detach InitialData from the caller's slice immediately — Init runs
 	// asynchronously and the ownership contract promises callers can
 	// mutate the buffer the moment NewWithConfig returns.
@@ -122,7 +126,7 @@ func NewWithConfig(cfg Config) Model {
 		cfg:       cfg,
 		keys:      DefaultKeyMap(),
 		style:     styles,
-		pic:       picture.NewWithConfig(cfg.PictureConfig),
+		pic:       picture.NewModelWithConfig(cfg.PictureConfig),
 		cols:      cfg.Cols,
 		rows:      cfg.Rows,
 		mode:      cfg.DefaultMode,

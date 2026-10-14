@@ -1,8 +1,8 @@
-// examples/svgview/main.go — single-pane svgview demo.
+// examples/svgview/main.go — single-pane ntsvg demo.
 //
 // Loads the SVG named on the command line (or an embedded sample when
 // no path is given) and renders it. It also demonstrates the
-// immediate-mode Canvas: press `c` to generate a bar chart on the fly
+// immediate-mode Stage: press `c` to generate a bar chart on the fly
 // and display it, `e` to export the most recent generated chart to an
 // .svg file. Keys:
 //
@@ -31,8 +31,9 @@ import (
 	"charm.land/lipgloss/v2"
 	booba "github.com/NimbleMarkets/go-booba"
 
-	"github.com/NimbleMarkets/ntcharts-svg/svg"
-	"github.com/NimbleMarkets/ntcharts/v2/picture"
+	picture "nimbleterminal.dev/ntpicture"
+	"nimbleterminal.dev/ntsvg"
+	"nimbleterminal.dev/ntsvg/stage"
 )
 
 // embeddedSample is the demo SVG compiled into the binary, used when
@@ -65,7 +66,7 @@ func kittyBadge(cap picture.KittyCapability) string {
 	}
 }
 
-// appKeys is the parent program's help surface. The svgview widget owns
+// appKeys is the parent program's help surface. The ntsvg widget owns
 // the mode / zoom / pan bindings; this struct only exists so the
 // bubbles/help bubble has a KeyMap to render.
 type appKeys struct {
@@ -107,27 +108,27 @@ func (k appKeys) FullHelp() [][]key.Binding {
 }
 
 type model struct {
-	sv            svg.Model
+	sv            ntsvg.Model
 	help          help.Model
 	keys          appKeys
 	width, height int
 	preferKitty   bool // pending automatic selection; cleared by a manual toggle
 
-	// lastChart holds the most recently generated demo Canvas so the
+	// lastChart holds the most recently generated demo Stage so the
 	// export key has something to write.
-	lastChart *svg.Canvas
+	lastChart *stage.Stage
 	notice    string // transient status message (export result, etc.)
 }
 
-func initialModel(cfg svg.Config) model {
-	// Booba 0.7 receives raw RGBA through its browser shared-memory bridge,
+func initialModel(cfg ntsvg.Config) model {
+	// Booba receives raw RGBA through its browser shared-memory bridge,
 	// avoiding PNG encoding and base64 transport. Keep direct PNG on native
 	// terminals, which may be remote or lack shared-memory support.
 	if runtime.GOOS == "js" {
 		cfg.PictureConfig.KittyMedium = picture.KittyMediumSharedMemory
 	}
 	return model{
-		sv:          svg.NewWithConfig(cfg),
+		sv:          ntsvg.NewWithConfig(cfg),
 		help:        help.New(),
 		keys:        newAppKeys(),
 		preferKitty: true,
@@ -154,14 +155,14 @@ func (m *model) resize() tea.Cmd {
 }
 
 // demoChart builds a small grouped bar chart with the immediate-mode
-// Canvas API — the "generate chart → SVG" half of the widget.
-func demoChart() *svg.Canvas {
-	return svg.NewChart(360, 240).
+// Stage API — the "generate chart → SVG" half of the widget.
+func demoChart() *stage.Stage {
+	return stage.NewChart(360, 240).
 		SetTitle("Quarterly Revenue").
 		SetLabels("Q1", "Q2", "Q3", "Q4").
 		AddSeries("2025", "", 12, 19, 14, 23).
 		AddSeries("2026", "", 17, 15, 21, 28).
-		BarCanvas()
+		BarStage()
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -185,7 +186,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "c":
 			m.lastChart = demoChart()
 			m.notice = "generated demo chart"
-			return m, m.sv.ShowCanvas(m.lastChart)
+			return m, m.sv.ShowStage(m.lastChart)
 		case "e":
 			if m.lastChart == nil {
 				m.notice = "press 'c' to generate a chart first"
@@ -206,7 +207,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// a timeout, since a late positive reply can still establish support.
 	if m.preferKitty && m.sv.KittySupported() == picture.KittyCapabilitySupported {
 		m.preferKitty = false
-		if m.sv.RenderMode() != svg.RenderKitty {
+		if m.sv.RenderMode() != ntsvg.RenderKitty {
 			cmd = tea.Batch(cmd, m.sv.ToggleRenderMode())
 		}
 	}
@@ -220,17 +221,17 @@ func (m model) View() tea.View {
 	body := boxStyle.Render(m.sv.View().Content)
 
 	modeName := "Raster"
-	if m.sv.Mode() == svg.InfoMode {
+	if m.sv.Mode() == ntsvg.InfoMode {
 		modeName = "Info"
 	} else if !m.sv.HasRenderer() {
 		label := "Raster (no renderer)"
 		if err := m.sv.RendererErr(); err != nil {
-			label = fmt.Sprintf("Raster (error: %s)", svg.SanitizeForTerminal(err.Error()))
+			label = fmt.Sprintf("Raster (error: %s)", ntsvg.SanitizeForTerminal(err.Error()))
 		}
 		modeName = warnStyle.Render(label)
 	}
 	renderName := "Glyph"
-	if m.sv.RenderMode() == svg.RenderKitty {
+	if m.sv.RenderMode() == ntsvg.RenderKitty {
 		renderName = "Kitty"
 	}
 	zoomTag := ""
@@ -239,18 +240,18 @@ func (m model) View() tea.View {
 	}
 	fitName := "Contain"
 	switch m.sv.Fit() {
-	case svg.FitFill:
+	case ntsvg.FitFill:
 		fitName = "Fill"
-	case svg.FitCover:
+	case ntsvg.FitCover:
 		fitName = "Cover"
 	}
 	w, h := m.sv.ViewBox()
-	name := svg.SanitizeForTerminal(filepath.Base(m.sv.Name()))
+	name := ntsvg.SanitizeForTerminal(filepath.Base(m.sv.Name()))
 	status := fmt.Sprintf("%s  %g×%g%s  %s  %s  fit:%s  %s",
 		name, w, h, zoomTag, modeName, renderName, fitName,
 		kittyBadge(m.sv.KittySupported()))
 	if err := m.sv.Err(); err != nil {
-		status = errStyle.Render(svg.SanitizeForTerminal(err.Error())) + "  " + status
+		status = errStyle.Render(ntsvg.SanitizeForTerminal(err.Error())) + "  " + status
 	} else if m.notice != "" {
 		status = okStyle.Render(m.notice) + "  " + status
 	}
@@ -275,18 +276,18 @@ func main() {
 	}
 }
 
-// initialConfig assembles the svg.Config the example launches with.
+// initialConfig assembles the ntsvg.Config the example launches with.
 // argv[1] wins as a filesystem path; otherwise the embedded sample SVG
 // bytes are passed directly via Config.InitialData.
-func initialConfig() (svg.Config, error) {
+func initialConfig() (ntsvg.Config, error) {
 	if len(os.Args) > 1 {
 		path := os.Args[1]
 		if _, err := os.Stat(path); err != nil {
-			return svg.Config{}, fmt.Errorf("argv[1] %q: %w", path, err)
+			return ntsvg.Config{}, fmt.Errorf("argv[1] %q: %w", path, err)
 		}
-		return svg.Config{InitialPath: path}, nil
+		return ntsvg.Config{InitialPath: path}, nil
 	}
-	return svg.Config{
+	return ntsvg.Config{
 		InitialData: embeddedSample,
 		InitialName: "sample.svg",
 	}, nil
