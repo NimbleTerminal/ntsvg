@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="240" viewBox="0 0 360 240">
+  <title>Bezier Curves &amp; Dashing</title>
+  <desc>Cubic and quadratic Bezier splines with dashed strokes, round caps, and compound rings.</desc>
+  <rect x="0" y="0" width="360" height="240" fill="#11151c"/>
+  <path d="M 28 190 C 90 40, 170 40, 230 190 S 310 210, 336 68"
+        fill="none" stroke="#4e79a7" stroke-width="14" stroke-linecap="round" opacity="0.45"/>
+  <path d="M 28 190 C 90 40, 170 40, 230 190 S 310 210, 336 68"
+        fill="none" stroke="#8de3b6" stroke-width="5" stroke-linecap="round" stroke-dasharray="14,10"/>
+  <path d="M 32 92 Q 112 20, 184 116 T 332 142"
+        fill="none" stroke="#f28e2b" stroke-width="4" stroke-linecap="round"/>
+  <path d="M 32 134 Q 112 214, 184 116 T 332 82"
+        fill="none" stroke="#e15759" stroke-width="4" stroke-linecap="square" stroke-dasharray="6,8"/>
+  <path d="M 184 68 A 48 48 0 1 0 184 164 A 48 48 0 1 0 184 68 Z M 184 90 A 26 26 0 1 1 184 142 A 26 26 0 1 1 184 90 Z"
+        fill="#edc948" opacity="0.82"/>
+  <text x="180" y="28" font-family="sans-serif" font-size="16" fill="#e4e8ee" text-anchor="middle">Bezier Curves &amp; Dashing</text>
+  <text x="180" y="222" font-family="monospace" font-size="12" fill="#9daaba" text-anchor="middle">C / S / Q / T / A path commands</text>
+</svg>

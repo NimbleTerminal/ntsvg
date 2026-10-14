@@ -169,9 +169,12 @@ func DefaultStyles() Styles {
 	return Styles{
 		Text: lipgloss.NewStyle(),
 		Info: lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
-			Padding(0, 1).
-			Foreground(lipgloss.Color("242")),
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("244")).
+			BorderBackground(lipgloss.Color("235")).
+			Background(lipgloss.Color("235")).
+			Foreground(lipgloss.Color("252")).
+			Padding(0, 1),
 		Status: lipgloss.NewStyle().Foreground(lipgloss.Color("242")),
 		Error:  lipgloss.NewStyle().Foreground(lipgloss.Color("9")),
 	}

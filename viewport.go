@@ -100,7 +100,7 @@ func (m *Model) clampPan() {
 // viewport-size units. Direction sign follows screen convention:
 // dx > 0 pans right, dy > 0 pans down.
 func (m *Model) pan(dx, dy float64) tea.Cmd {
-	if m.mode != RasterMode || m.sourceImage == nil || m.zoom == 0 {
+	if m.sourceImage == nil || m.zoom == 0 {
 		return nil
 	}
 	step := panStep * m.viewportSize()

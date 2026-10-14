@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="240" viewBox="0 0 360 240">
+  <title>ntsvg Rendering Pipeline</title>
+  <desc>Vector architecture diagram showing stage.Stage and SVG documents flowing through oksvg into ntpicture.</desc>
+  <rect x="0" y="0" width="360" height="240" fill="#11151c"/>
+  <rect x="20" y="48" width="92" height="54" rx="8" ry="8" fill="#1e293b" stroke="#8de3b6" stroke-width="2"/>
+  <rect x="20" y="132" width="92" height="54" rx="8" ry="8" fill="#1e293b" stroke="#4ea8de" stroke-width="2"/>
+  <rect x="142" y="90" width="92" height="54" rx="8" ry="8" fill="#1e293b" stroke="#f28e2b" stroke-width="2.5"/>
+  <rect x="258" y="48" width="84" height="54" rx="8" ry="8" fill="#1e293b" stroke="#edc948" stroke-width="2"/>
+  <rect x="258" y="132" width="84" height="54" rx="8" ry="8" fill="#1e293b" stroke="#e15759" stroke-width="2"/>
+  <polyline points="112,75 130,75 130,108 142,108" fill="none" stroke="#8de3b6" stroke-width="2.5"/>
+  <polyline points="112,159 130,159 130,126 142,126" fill="none" stroke="#4ea8de" stroke-width="2.5"/>
+  <polyline points="234,108 246,108 246,75 258,75" fill="none" stroke="#edc948" stroke-width="2.5"/>
+  <polyline points="234,126 246,126 246,159 258,159" fill="none" stroke="#e15759" stroke-width="2.5"/>
+  <text x="180" y="26" font-family="sans-serif" font-size="15" fill="#e4e8ee" text-anchor="middle">ntsvg Rendering Pipeline</text>
+  <text x="66" y="72" font-family="monospace" font-size="12" fill="#8de3b6" text-anchor="middle">stage.Stage</text>
+  <text x="66" y="90" font-family="sans-serif" font-size="10" fill="#a9b5c5" text-anchor="middle">Immediate API</text>
+  <text x="66" y="156" font-family="monospace" font-size="12" fill="#4ea8de" text-anchor="middle">SVG Bytes</text>
+  <text x="66" y="174" font-family="sans-serif" font-size="10" fill="#a9b5c5" text-anchor="middle">File / Reader</text>
+  <text x="188" y="114" font-family="monospace" font-size="12" fill="#f28e2b" text-anchor="middle">ntsvg.Model</text>
+  <text x="188" y="132" font-family="sans-serif" font-size="10" fill="#a9b5c5" text-anchor="middle">oksvg + rasterx</text>
+  <text x="300" y="72" font-family="monospace" font-size="12" fill="#edc948" text-anchor="middle">ntpicture</text>
+  <text x="300" y="90" font-family="sans-serif" font-size="10" fill="#a9b5c5" text-anchor="middle">Glyph / Kitty</text>
+  <text x="300" y="156" font-family="monospace" font-size="12" fill="#e15759" text-anchor="middle">InfoMode</text>
+  <text x="300" y="174" font-family="sans-serif" font-size="10" fill="#a9b5c5" text-anchor="middle">Title &amp; Text</text>
+</svg>

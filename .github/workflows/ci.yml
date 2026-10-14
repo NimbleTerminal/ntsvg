@@ -27,9 +27,22 @@ jobs:
         run: go vet ./...
       - name: Test
         run: go test ./...
-      - name: Build examples
+      - name: Build library and examples
         run: go build ./...
-      - name: Build WASM
-        run: GOWORK="$PWD/wasm.work" GOARCH=wasm GOOS=js go build ./examples/svgview/
+      - name: Build WASM site
+        run: |
+          mkdir -p web/demos
+          for demo in gallery stage charts svgview; do
+            GOWORK="$PWD/wasm.work" GOARCH=wasm GOOS=js CGO_ENABLED=0 go build -o "web/demos/${demo}.wasm" "./examples/${demo}"
+          done
+          go tool booba-assets --no-index web
+          cp LICENSE.txt web/LICENSE
+      - name: Check WASM site and smoke-test demos
+        run: |
+          node --check web/site.js
+          node scripts/check-site.mjs
+          for demo in gallery stage charts svgview; do
+            node scripts/smoke-demo.mjs "${demo}"
+          done
       - name: Test browser picture transport
         run: GOWORK="$PWD/wasm.work" GOARCH=wasm GOOS=js go test -exec="$(go env GOROOT)/lib/wasm/go_js_wasm_exec" . -run TestBrowserSharedMemoryLifecycle -v

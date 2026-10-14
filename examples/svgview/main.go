@@ -1,21 +1,10 @@
-// examples/svgview/main.go — single-pane ntsvg demo.
+// examples/svgview/main.go — single-pane ntsvg demo and CLI viewer.
 //
 // Loads the SVG named on the command line (or an embedded sample when
 // no path is given) and renders it. It also demonstrates the
 // immediate-mode Stage: press `c` to generate a bar chart on the fly
 // and display it, `e` to export the most recent generated chart to an
-// .svg file. Keys:
-//
-//	m or t      toggle Raster ↔ Info mode
-//	g           toggle Glyph ↔ Kitty (Raster mode only)
-//	r           reload / re-rasterize
-//	+/-         zoom in / out
-//	←↑↓→        pan (when zoomed)
-//	f           cycle fit mode
-//	c           generate a demo chart and show it
-//	e           export the last generated chart to ./svgview-chart.svg
-//	?           toggle help
-//	q / ctrl+c  quit
+// .svg file.
 package main
 
 import (
@@ -29,10 +18,10 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	booba "github.com/NimbleMarkets/go-booba"
 
 	picture "nimbleterminal.dev/ntpicture"
 	"nimbleterminal.dev/ntsvg"
+	"nimbleterminal.dev/ntsvg/examples/internal/demohelp"
 	"nimbleterminal.dev/ntsvg/stage"
 )
 
@@ -53,8 +42,6 @@ var (
 	warnStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 )
 
-// kittyBadge renders a compact indicator for the terminal's Kitty
-// graphics capability.
 func kittyBadge(cap picture.KittyCapability) string {
 	switch cap {
 	case picture.KittyCapabilitySupported:
@@ -66,9 +53,6 @@ func kittyBadge(cap picture.KittyCapability) string {
 	}
 }
 
-// appKeys is the parent program's help surface. The ntsvg widget owns
-// the mode / zoom / pan bindings; this struct only exists so the
-// bubbles/help bubble has a KeyMap to render.
 type appKeys struct {
 	mode   key.Binding
 	render key.Binding
@@ -112,18 +96,13 @@ type model struct {
 	help          help.Model
 	keys          appKeys
 	width, height int
-	preferKitty   bool // pending automatic selection; cleared by a manual toggle
+	preferKitty   bool
 
-	// lastChart holds the most recently generated demo Stage so the
-	// export key has something to write.
 	lastChart *stage.Stage
-	notice    string // transient status message (export result, etc.)
+	notice    string
 }
 
 func initialModel(cfg ntsvg.Config) model {
-	// Booba receives raw RGBA through its browser shared-memory bridge,
-	// avoiding PNG encoding and base64 transport. Keep direct PNG on native
-	// terminals, which may be remote or lack shared-memory support.
 	if runtime.GOOS == "js" {
 		cfg.PictureConfig.KittyMedium = picture.KittyMediumSharedMemory
 	}
@@ -137,25 +116,39 @@ func initialModel(cfg ntsvg.Config) model {
 
 func (m model) Init() tea.Cmd { return m.sv.Init() }
 
+func (m model) Help() []key.Binding {
+	return []key.Binding{
+		demohelp.Key("Raster / Info", "m", "t"),
+		demohelp.Key("Demo chart", "c"),
+		demohelp.Key("Fit mode", "f"),
+		demohelp.Key("Zoom in", "+", "="),
+		demohelp.Key("Zoom out", "-", "_"),
+		demohelp.Key("Glyph / Kitty", "g"),
+		demohelp.Key("Reset", "r"),
+		demohelp.Key("Quit", "q", "ctrl+c"),
+	}
+}
+
+func (m model) Summary() string {
+	mode := "raster"
+	if m.sv.Mode() == ntsvg.InfoMode {
+		mode = "info"
+	}
+	return fmt.Sprintf("Viewer: name=%s mode=%s chart=%t",
+		filepath.Base(m.sv.Name()), mode, m.lastChart != nil)
+}
+
 func (m *model) resize() tea.Cmd {
 	if m.width == 0 || m.height == 0 {
 		return nil
 	}
 	m.help.SetWidth(m.width)
 	helpH := lipgloss.Height(m.help.View(m.keys))
-	innerW := m.width - 2
-	innerH := m.height - helpH - 1 /* footer */ - 2 /* box borders */
-	if innerW < 1 {
-		innerW = 1
-	}
-	if innerH < 1 {
-		innerH = 1
-	}
+	innerW := max(1, m.width-2)
+	innerH := max(1, m.height-helpH-1-2)
 	return m.sv.SetSize(innerW, innerH)
 }
 
-// demoChart builds a small grouped bar chart with the immediate-mode
-// Stage API — the "generate chart → SVG" half of the widget.
 func demoChart() *stage.Stage {
 	return stage.NewChart(360, 240).
 		SetTitle("Quarterly Revenue").
@@ -187,6 +180,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.lastChart = demoChart()
 			m.notice = "generated demo chart"
 			return m, m.sv.ShowStage(m.lastChart)
+		case "r":
+			if m.lastChart != nil {
+				m.lastChart = nil
+				m.notice = ""
+				return m, m.sv.SetSVGData("sample.svg", embeddedSample)
+			}
 		case "e":
 			if m.lastChart == nil {
 				m.notice = "press 'c' to generate a chart first"
@@ -203,8 +202,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 	m.sv, cmd = m.sv.Update(msg)
-	// Update consumes the asynchronous capability reply. Keep waiting after
-	// a timeout, since a late positive reply can still establish support.
 	if m.preferKitty && m.sv.KittySupported() == picture.KittyCapabilitySupported {
 		m.preferKitty = false
 		if m.sv.RenderMode() != ntsvg.RenderKitty {
@@ -258,7 +255,9 @@ func (m model) View() tea.View {
 	footer := footerStyle.Width(m.width).Render(status)
 
 	out := lipgloss.JoinVertical(lipgloss.Left, body, footer, m.help.View(m.keys))
-	return tea.NewView(out)
+	v := tea.NewView(out)
+	v.AltScreen = true
+	return v
 }
 
 func main() {
@@ -267,18 +266,9 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	// booba.Run runs the Bubble Tea program normally on native builds
-	// and bridges it to the booba terminal emulator under GOOS=js, so
-	// the same example binary powers both the CLI and the WASM demo.
-	if err := booba.Run(initialModel(cfg)); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
+	demohelp.Main(initialModel(cfg))
 }
 
-// initialConfig assembles the ntsvg.Config the example launches with.
-// argv[1] wins as a filesystem path; otherwise the embedded sample SVG
-// bytes are passed directly via Config.InitialData.
 func initialConfig() (ntsvg.Config, error) {
 	if len(os.Args) > 1 {
 		path := os.Args[1]

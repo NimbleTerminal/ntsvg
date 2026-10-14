@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="240" viewBox="0 0 360 240">
+  <title>Radial &amp; Linear Gradients</title>
+  <desc>Multi-stop linear and radial gradients with transforms and gradient-stroked Bezier paths.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b1021"/>
+      <stop offset="55%" stop-color="#1b264f"/>
+      <stop offset="100%" stop-color="#2c1654"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="50%" cy="50%" fx="35%" fy="35%" r="50%">
+      <stop offset="0%" stop-color="#fff3b0"/>
+      <stop offset="45%" stop-color="#ff9f1c"/>
+      <stop offset="85%" stop-color="#e71d36"/>
+      <stop offset="100%" stop-color="#e71d36" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="orb" cx="45%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#a8f9ff"/>
+      <stop offset="50%" stop-color="#2ec4b6"/>
+      <stop offset="100%" stop-color="#0f4c5c"/>
+    </radialGradient>
+    <linearGradient id="ribbon" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8de3b6"/>
+      <stop offset="50%" stop-color="#ffd166"/>
+      <stop offset="100%" stop-color="#ff6b6b"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="360" height="240" fill="url(#sky)"/>
+  <circle cx="112" cy="112" r="76" fill="url(#sun)"/>
+  <ellipse cx="256" cy="108" rx="58" ry="58" fill="url(#orb)"/>
+  <rect x="36" y="182" width="288" height="28" rx="8" ry="8" fill="url(#ribbon)" opacity="0.9"/>
+  <path d="M 24 156 C 96 64, 184 212, 336 86" fill="none" stroke="url(#ribbon)" stroke-width="7" stroke-linecap="round"/>
+  <text x="180" y="28" font-family="sans-serif" font-size="16" fill="#ffffff" text-anchor="middle">Radial &amp; Linear Gradients</text>
+</svg>

@@ -58,24 +58,21 @@ func main() {
 
 Toggle Raster ↔ Info with `m`, swap Glyph ↔ Kitty with `g`, zoom with `+` / `-`, pan with arrows, cycle fit with `f`, reload with `r`, reset view with `0`. The widget's `Update` dispatches all of these through `DefaultKeyMap()`; rebind a field to change the keystroke (or set a binding to `key.Binding{}` to disable it).
 
-## Demo
+## Demos & Sample Gallery
 
-Building requires Go 1.26.8 or newer.
+Building requires Go 1.26.8 or newer. See [`examples/README.md`](./examples/README.md) for full details:
 
-A fuller demo lives at [`examples/svgview`](./examples/svgview/main.go) — adds a status bar, help bubble, and the `c` / `e` keys that generate and export a chart at runtime.
+- **`task run-gallery`** ([`examples/gallery`](./examples/gallery/main.go)) — browse five embedded SVG samples ([`examples/gallery/samples/`](./examples/gallery/samples)) across Raster and Info modes, fit policies, and zoom levels.
+- **`task run-stage`** ([`examples/stage`](./examples/stage/main.go)) — interactive immediate-mode vector stage (`stage.Stage`) with geometric primitives, cubic Bezier waves, procedural rosettes, and telemetry HUD cards.
+- **`task run-charts`** ([`examples/charts`](./examples/charts/main.go)) — live grouped bar and multi-series line chart builder using `stage.Chart`.
+- **`task run-svgview`** ([`examples/svgview`](./examples/svgview/main.go)) — single-pane CLI viewer (`./bin/ntsvg-svgview [path.svg]`) with a status bar, help bubble, and `c` / `e` keys to generate and export a chart at runtime.
 
-The demo automatically selects Kitty graphics when terminal support is detected,
-and otherwise uses glyph rendering. Press `g` to choose the rendering mode manually.
+All demos automatically select Kitty graphics when terminal support is detected, and otherwise use half-block glyph rendering (`g` toggles manually).
 
-```sh
-task build-ex-svgview
-./bin/ntsvg-svgview path/to/your.svg   # or no argument for the embedded sample
-```
-
-The same example compiles to WebAssembly and runs in the browser via [`booba`](https://github.com/NimbleMarkets/go-booba) — no JS bridge required, since the rasterizer is pure Go. Build and serve it locally:
+The same examples compile to WebAssembly and run in the browser sample gallery via [`booba`](https://github.com/NimbleMarkets/go-booba), publishing their key bindings as interactive action buttons above the terminal:
 
 ```sh
-task serve-wasm-site   # builds web/app.wasm, stages booba assets, serves at :8000
+task serve-wasm-site   # builds web/demos/*.wasm, stages booba assets, serves http://localhost:8000/web/
 ```
 
 `task build-wasm-site` alone produces the deployable `web/` directory; the `.github/workflows/pages.yml` workflow publishes it to GitHub Pages on every push to `main`.
@@ -187,7 +184,7 @@ SVG titles, descriptions, element names, and error messages can carry C0/C1 cont
 
 ## Known caveats
 
-- **WASM dependencies.** `wasm.work` selects the Bubble Tea fork with browser support; native builds use the upstream dependency in `go.mod`. The WASM tasks and CI select this workspace automatically; manual builds need `GOWORK="$PWD/wasm.work" GOOS=js GOARCH=wasm go build -o web/app.wasm ./examples/svgview/`.
+- **WASM dependencies.** `wasm.work` selects the Bubble Tea fork with browser support; native builds use the upstream dependency in `go.mod`. The WASM tasks and CI select this workspace automatically; manual builds need `GOWORK="$PWD/wasm.work" GOOS=js GOARCH=wasm go build -o web/demos/gallery.wasm ./examples/gallery`.
 - **Pre-release `ntpicture` replacement.** Until `nimbleterminal.dev/ntpicture` is tagged and published, `go.mod` and `wasm.work` use a sibling `replace nimbleterminal.dev/ntpicture => ../ntpicture` directive.
 - **Zoom is vector-sharp.** With a document `Renderer` attached, `ZoomIn` / `PanLeft` (etc.) re-rasterize the viewport sub-rectangle via `Renderer.RenderRegion`, so zoomed-in views stay crisp at any depth rather than upscaling a fixed bitmap. Zoom 0 reuses the full-document bitmap (no re-render); each zoom/pan keypress at depth costs one rasterize. A host bitmap installed via `SetImage` has no renderer, so it still crops (chunky-pixel inspection) — there are no vectors to re-rasterize.
 - **`oksvg` supports a broad but not exhaustive slice of SVG.** Filters, advanced gradients, embedded fonts, and CSS-heavy documents may render approximately or skip elements (the parser runs in ignore-errors mode). For pixel-perfect fidelity, wire a custom `RendererFactory` around a stricter rasterizer.

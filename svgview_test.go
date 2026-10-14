@@ -2,6 +2,7 @@ package ntsvg
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -210,9 +211,50 @@ func TestViewPlaceholders(t *testing.T) {
 		t.Error("View() with no document produced empty content")
 	}
 	m = loadData(t, New(40, 8), "fixture.svg", sampleSVG)
+	// In RasterMode after load but before rasterization completes, View()
+	// must stay on the Loading placeholder rather than flashing InfoMode text.
+	if got := m.View().Content; !strings.Contains(got, "Loading") || strings.Contains(got, "elements:") {
+		t.Errorf("RasterMode pre-render View() flashed info text: %q", got)
+	}
 	m.ToggleMode() // InfoMode renders without a raster
 	if got := m.View().Content; got == "" {
 		t.Error("InfoMode View() produced empty content")
+	}
+}
+
+func TestInfoOverlayOverRaster(t *testing.T) {
+	m := loadData(t, New(80, 24), "fixture.svg", sampleSVG)
+	m = rasterize(t, m)
+	m.ToggleMode()
+	if m.Mode() != InfoMode {
+		t.Fatalf("Mode() = %v, want InfoMode", m.Mode())
+	}
+	if m.Image() == nil {
+		t.Fatal("ToggleMode into InfoMode should preserve the rasterized Image()")
+	}
+	view := m.View().Content
+	if !strings.Contains(view, "unit fixture") {
+		t.Error("InfoMode overlay should include the SVG title")
+	}
+	if !strings.Contains(view, "▄") {
+		t.Error("InfoMode overlay should preserve underlying half-block raster cells")
+	}
+}
+
+func TestNoInfoFlickerOnTransition(t *testing.T) {
+	m := loadData(t, New(80, 24), "first.svg", sampleSVG)
+	m = rasterize(t, m)
+
+	// Start loading a second SVG; neither the immediate pre-load frame nor
+	// the post-svgLoadedMsg pre-renderedMsg frame may flash InfoMode text
+	// or a "Loading…" placeholder while the previous raster is available.
+	cmd := m.SetSVGData("second.svg", sampleSVG)
+	if got := m.View().Content; strings.Contains(got, "Loading") || strings.Contains(got, "elements:") {
+		t.Errorf("in-flight transition flashed placeholder/info text: %q", got)
+	}
+	m, _ = m.Update(cmd()) // delivers svgLoadedMsg; renderCmd not yet run
+	if got := m.View().Content; strings.Contains(got, "Loading") || strings.Contains(got, "elements:") {
+		t.Errorf("post-load pre-render transition flashed placeholder/info text: %q", got)
 	}
 }
 

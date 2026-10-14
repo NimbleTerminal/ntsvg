@@ -45,8 +45,11 @@ type Model struct {
 	mode Mode
 
 	// doc is the InfoMode summary of the currently-loaded SVG. nil
-	// until the first successful load.
-	doc *Document
+	// until the first successful load (or while a new load is in flight).
+	// prevDoc retains the previous Document during transitions so an
+	// active InfoMode overlay does not blink while a new SVG loads.
+	doc     *Document
+	prevDoc *Document
 
 	// sourceImage is the full-resolution rasterized bitmap from the
 	// most recent Render call. nil until the first successful render.
@@ -250,11 +253,15 @@ func (m *Model) resetForLoad(name string) {
 		_ = m.cur.Close()
 		m.cur = nil
 	}
-	// Clear the document and image only if we are loading a different file/resource.
-	// Preserving them for the same name avoids screen flashing during streaming updates.
+	if m.doc != nil {
+		m.prevDoc = m.doc
+	}
+	// Clear m.doc when loading a different resource so Document() reflects
+	// the in-flight load, while retaining m.sourceImage and m.prevDoc so
+	// transitions never flash "Loading…" or InfoMode text before the new
+	// raster arrives.
 	if m.name != name {
 		m.doc = nil
-		m.sourceImage = nil
 	}
 	m.name = name
 	m.rendererErr = nil
@@ -279,6 +286,7 @@ func (m *Model) SetImage(img image.Image) tea.Cmd {
 		_ = m.cur.Close()
 		m.cur = nil
 	}
+	m.prevDoc = nil
 	m.sourceImage = img
 	m.err = nil
 	return m.applyViewport()
@@ -300,35 +308,32 @@ func (m *Model) SetImageAndRenderer(img image.Image, r Renderer, doc *Document) 
 	}
 	m.cur = r
 	m.doc = doc
+	m.prevDoc = nil
 	m.sourceImage = img
 	m.err = nil
 	return m.applyViewport()
 }
 
-// ToggleMode swaps Raster↔Info. Switching into RasterMode renders the
-// SVG when no bitmap is cached yet; switching to InfoMode clears the
-// picture image so the terminal doesn't leave a stale Kitty placement.
+// ToggleMode swaps RasterMode ↔ InfoMode. InfoMode overlays the document
+// summary card on top of the rasterized SVG while keeping the underlying
+// bitmap intact.
 func (m *Model) ToggleMode() tea.Cmd {
 	if m.mode == InfoMode {
 		m.mode = RasterMode
-		if m.sourceImage != nil {
-			return m.applyViewport()
-		}
+	} else {
+		m.mode = InfoMode
+	}
+	if m.sourceImage == nil {
 		return m.renderCmd()
 	}
-	m.mode = InfoMode
-	return m.pic.SetImage(nil)
+	return nil
 }
 
 // ToggleRenderMode swaps Glyph↔Kitty for RasterMode rendering.
 func (m *Model) ToggleRenderMode() tea.Cmd { return m.pic.Toggle() }
 
-// Reload re-rasterizes the current SVG (no-op in InfoMode or when no
-// renderer is attached).
+// Reload re-rasterizes the current SVG (no-op when no renderer is attached).
 func (m *Model) Reload() tea.Cmd {
-	if m.mode != RasterMode {
-		return nil
-	}
 	return m.renderCmd()
 }
 
@@ -337,10 +342,9 @@ func (m *Model) Reload() tea.Cmd {
 func (m Model) Zoom() int { return m.zoom }
 
 // ZoomIn doubles the magnification, recentering on the current viewport
-// center. Caps at zoomMax. No-op outside RasterMode or before a bitmap
-// has been rendered.
+// center. Caps at zoomMax. No-op before a bitmap has been rendered.
 func (m *Model) ZoomIn() tea.Cmd {
-	if m.mode != RasterMode || m.sourceImage == nil || m.zoom >= zoomMax {
+	if m.sourceImage == nil || m.zoom >= zoomMax {
 		return nil
 	}
 	cx, cy := m.viewportCenter()
@@ -352,7 +356,7 @@ func (m *Model) ZoomIn() tea.Cmd {
 // ZoomOut halves the magnification toward fit-to-rect, recentering on
 // the current viewport center. No-op when already at zoom 0.
 func (m *Model) ZoomOut() tea.Cmd {
-	if m.mode != RasterMode || m.sourceImage == nil || m.zoom <= 0 {
+	if m.sourceImage == nil || m.zoom <= 0 {
 		return nil
 	}
 	cx, cy := m.viewportCenter()
@@ -362,8 +366,8 @@ func (m *Model) ZoomOut() tea.Cmd {
 }
 
 // PanLeft, PanRight, PanUp, PanDown shift the viewport by panStep of its
-// own width / height. They no-op outside RasterMode, when no bitmap is
-// loaded, or at zoom 0 (the whole image fits — nothing to pan into).
+// own width / height. They no-op when no bitmap is loaded or at zoom 0
+// (the whole image fits — nothing to pan into).
 func (m *Model) PanLeft() tea.Cmd  { return m.pan(-1, 0) }
 func (m *Model) PanRight() tea.Cmd { return m.pan(+1, 0) }
 func (m *Model) PanUp() tea.Cmd    { return m.pan(0, -1) }
@@ -406,7 +410,7 @@ func (m *Model) ResetView() tea.Cmd {
 		return nil
 	}
 	m.zoom, m.panX, m.panY = 0, 0, 0
-	if m.mode != RasterMode || m.sourceImage == nil {
+	if m.sourceImage == nil {
 		return nil
 	}
 	return m.applyViewport()
@@ -488,19 +492,24 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 		m.name = msg.name
 		m.doc = msg.doc
+		m.prevDoc = nil
 		m.cur = msg.renderer
 		m.rendererErr = msg.rendererErr
 		m.err = nil
-		if m.mode == RasterMode {
-			if c := m.renderCmd(); c != nil {
+		if m.cur == nil {
+			m.sourceImage = nil
+			if c := m.pic.SetImage(nil); c != nil {
 				cmds = append(cmds, c)
 			}
+		} else if c := m.renderCmd(); c != nil {
+			cmds = append(cmds, c)
 		}
 
 	case svgErrMsg:
 		if msg.gen == *m.loadGen {
 			m.err = msg.err
 			m.doc = nil
+			m.prevDoc = nil
 			m.sourceImage = nil
 		}
 
@@ -615,9 +624,10 @@ func (m *Model) renderRegionCmd() tea.Cmd {
 	}
 }
 
-// View renders the loaded SVG according to the active mode. RasterMode
-// falls back to InfoMode when no renderer is attached or no bitmap has
-// been rasterized yet.
+// View renders the loaded SVG according to the active mode. In InfoMode
+// the document summary card is overlaid on top of the rasterized SVG;
+// RasterMode falls back to InfoMode only when no renderer is attached or
+// rasterization failed.
 func (m Model) View() tea.View {
 	// Error first: a load failure should not hide behind "No SVG
 	// loaded". Sanitize externally-derived strings before they reach
@@ -626,7 +636,7 @@ func (m Model) View() tea.View {
 		return tea.NewView(m.placeholderView(m.style.Error,
 			fmt.Sprintf("error: %s", SanitizeForTerminal(m.err.Error()))))
 	}
-	if m.mode == RasterMode && m.sourceImage != nil {
+	if m.sourceImage != nil {
 		// A rasterized bitmap is shown as soon as one exists — even with
 		// no document, since SetImage installs caller-supplied bitmaps
 		// that have no parsed Document. This must win over the "Loading"
@@ -640,16 +650,23 @@ func (m Model) View() tea.View {
 		if m.cols > 0 && m.rows > 0 {
 			pv.Content = lipgloss.Place(m.cols, m.rows, lipgloss.Left, lipgloss.Top, pv.Content)
 		}
+		if m.mode == InfoMode {
+			pv.Content = m.overlayInfoView(pv.Content)
+		}
 		return pv
 	}
 	if m.name == "" {
 		return tea.NewView(m.placeholderView(m.style.Status, "No SVG loaded"))
 	}
-	if m.doc == nil {
+	// While a load is in flight, or while RasterMode is waiting for its
+	// initial rasterization to complete, show the loading placeholder
+	// rather than flashing the InfoMode text summary.
+	if m.activeDoc() == nil || (m.mode == RasterMode && m.cur != nil && m.err == nil) {
 		return tea.NewView(m.placeholderView(m.style.Status,
 			fmt.Sprintf("Loading %s…", SanitizeForTerminal(m.name))))
 	}
-	// InfoMode, or RasterMode with no bitmap yet.
+	// InfoMode with no bitmap yet, or RasterMode fallback when no
+	// renderer is available.
 	content := m.renderInfoView()
 	if m.cols > 0 && m.rows > 0 {
 		content = lipgloss.Place(m.cols, m.rows, lipgloss.Left, lipgloss.Top, content)

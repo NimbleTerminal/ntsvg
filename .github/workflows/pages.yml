@@ -34,10 +34,23 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - name: Build WASM binary
-        run: GOWORK="$PWD/wasm.work" GOARCH=wasm GOOS=js go build -o web/app.wasm ./examples/svgview/
+      - name: Build WASM demos
+        run: |
+          mkdir -p web/demos
+          for demo in gallery stage charts svgview; do
+            GOWORK="$PWD/wasm.work" GOARCH=wasm GOOS=js CGO_ENABLED=0 go build -o "web/demos/${demo}.wasm" "./examples/${demo}"
+          done
       - name: Set up web assets
-        run: go tool booba-assets --no-index web/
+        run: |
+          go tool booba-assets --no-index web
+          cp LICENSE.txt web/LICENSE
+      - name: Check site and smoke-test WASM demos
+        run: |
+          node --check web/site.js
+          node scripts/check-site.mjs
+          for demo in gallery stage charts svgview; do
+            node scripts/smoke-demo.mjs "${demo}"
+          done
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

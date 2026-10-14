@@ -52,76 +52,100 @@ tasks:
       - go vet ./...
 
   build:
-    desc: 'Build all the things'
-    deps:
-      - build-examples
+    desc: 'Build library and native examples'
+    cmds:
+      - go build ./...
+      - task: build-examples
 
   clean:
-    desc: 'Clean built examples'
+    desc: 'Clean built examples and generated site artifacts'
     deps:
       - clean-wasm-site
     cmds:
-      - rm -f bin/ntsvg-svgview bin/ntcharts-svgview
-      - rm -rf .task
+      - rm -rf bin .task
 
 ###############################################################################
 # Examples
 
+  run-gallery:
+    desc: 'Run the embedded SVG sample gallery'
+    cmds: ['go run ./examples/gallery']
+
+  run-stage:
+    desc: 'Run the immediate-mode vector stage demo'
+    cmds: ['go run ./examples/stage']
+
+  run-charts:
+    desc: 'Run the interactive stage.Chart builder demo'
+    cmds: ['go run ./examples/charts']
+
+  run-svgview:
+    desc: 'Run the single-pane SVG viewer demo'
+    cmds: ['go run ./examples/svgview']
+
   build-examples:
-    desc: 'Build all examples'
+    desc: 'Build all native demos'
     deps:
-      - build-ex-svgview
+      - go-tidy
+    cmds:
+      - mkdir -p bin
+      - for: [gallery, stage, charts, svgview]
+        cmd: go build -o bin/ntsvg-{{.ITEM}} ./examples/{{.ITEM}}
 
   build-ex-svgview:
     desc: 'Build the svgview example'
     deps:
       - go-tidy
     cmds:
+      - mkdir -p bin
       - go build -o bin/ntsvg-svgview ./examples/svgview
-    sources:
-      - '*.go'
-      - stage/*.go
-      - examples/svgview/*.go
-      - examples/svgview/testdata/sample.svg
-      - go.mod
-    generates:
-      - bin/ntsvg-svgview
 
 ###############################################################################
 # Demo website via booba
 #
-# The default rasterizer (oksvg/rasterx) is pure Go, so the svgview
-# example needs no JS bridge to render images in the browser.
-# booba-assets stages wasm_exec.js and the booba terminal runtime into
-# web/ alongside the WASM binary.
+# The default rasterizer (oksvg/rasterx) is pure Go, so all ntsvg demos
+# render in the browser with no external JS SVG bridge.
+
+  build-wasm:
+    desc: 'Build all browser WASM demos'
+    deps: [go-tidy]
+    env:
+      GOWORK: '{{.ROOT_DIR}}/wasm.work'
+      GOOS: js
+      GOARCH: wasm
+      CGO_ENABLED: '0'
+    cmds:
+      - mkdir -p web/demos
+      - for: [gallery, stage, charts, svgview]
+        cmd: go build -o web/demos/{{.ITEM}}.wasm ./examples/{{.ITEM}}
 
   build-wasm-site:
-    desc: 'Build the WASM demo site into web/'
-    deps: [go-tidy]
+    desc: 'Build browser demos and export the pinned booba runtime into web/'
     cmds:
-      - GOWORK="$PWD/wasm.work" GOARCH=wasm GOOS=js go build -o web/app.wasm ./examples/svgview/
-      - go tool booba-assets --no-index web/
-    generates:
-      - web/app.wasm
+      - task: build-wasm
+      - go tool booba-assets --no-index web
+      - cp LICENSE.txt web/LICENSE
+      - task: check-site
+
+  check-site:
+    desc: 'Check JavaScript syntax, site assets, and smoke-test all WASM demos'
+    cmds:
+      - node --check web/site.js
+      - node scripts/check-site.mjs
+      - for: [gallery, stage, charts, svgview]
+        cmd: node scripts/smoke-demo.mjs {{.ITEM}}
 
   serve-wasm-site:
-    desc: 'Serve web/ at http://localhost:8000/ntsvg/ (matches GH Pages prefix)'
-    deps: [build-wasm-site]
-    vars:
-      SERVE_DIR: /tmp/ntsvg-site
+    desc: 'Serve demos at http://localhost:8000/web/'
     cmds:
-      - mkdir -p {{.SERVE_DIR}}
-      - rm -f {{.SERVE_DIR}}/ntsvg
-      - ln -sfn "$(pwd)/web" {{.SERVE_DIR}}/ntsvg
-      - echo 'Serving at http://localhost:8000/ntsvg/'
-      - cd {{.SERVE_DIR}} && python3 -m http.server 8000
+      - task: build-wasm-site
+      - python3 -m http.server 8000 --bind 127.0.0.1
 
   clean-wasm-site:
     desc: 'Remove generated WASM demo site artifacts'
     cmds:
-      - rm -rf web/booba web/ghostty-web
-      - rm -f web/wasm_exec.js
-      - rm -f web/app.wasm
+      - rm -rf web/demos web/booba web/ghostty-web
+      - rm -f web/wasm_exec.js web/app.wasm web/LICENSE
 
 ###############################################################################
 # Demo gif (note: Kitty graphics do not render in VHS — this captures
