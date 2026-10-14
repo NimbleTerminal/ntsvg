@@ -2,6 +2,9 @@
 
 version: '3'
 
+env:
+  GOWORK: 'off'
+
 tasks:
   default:
     desc: 'Default task runs the "build" task'
@@ -26,11 +29,22 @@ tasks:
     run: once
     cmds:
       - go get -u ./...
+      - go get -u tool
+      - go mod tidy
 
   test:
     desc: 'Run all Go tests'
     cmds:
       - go test ./...
+
+  test-wasm:
+    desc: 'Run all Go tests under Node WASM'
+    env:
+      GOWORK: '{{.ROOT_DIR}}/wasm.work'
+      GOOS: js
+      GOARCH: wasm
+    cmds:
+      - 'go test -exec="$(go env GOROOT)/lib/wasm/go_js_wasm_exec" ./...'
 
   vet:
     desc: 'Run go vet'
@@ -84,8 +98,8 @@ tasks:
     desc: 'Build the WASM demo site into web/'
     deps: [go-tidy]
     cmds:
-      - GOARCH=wasm GOOS=js go build -o web/app.wasm ./examples/svgview/
-      - go tool booba-assets web/
+      - GOWORK="$PWD/wasm.work" GOARCH=wasm GOOS=js go build -o web/app.wasm ./examples/svgview/
+      - go tool booba-assets --no-index web/
     generates:
       - web/app.wasm
 

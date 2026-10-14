@@ -81,7 +81,7 @@ task serve-wasm-site   # builds web/app.wasm, stages booba assets, serves at :80
 
 `task build-wasm-site` alone produces the deployable `web/` directory; the `.github/workflows/pages.yml` workflow publishes it to GitHub Pages on every push to `main`.
 
-The browser demo uses booba v0.7.0 and requests ntcharts' Kitty shared-memory
+The browser demo uses booba v0.9.2 and requests ntcharts' Kitty shared-memory
 transport, passing raw RGBA frames without PNG encoding or base64 image payloads.
 It falls back to direct PNG when the browser bridge is unavailable. Native builds
 keep direct PNG transport. Library callers can opt in through
@@ -184,6 +184,7 @@ SVG titles, descriptions, element names, and error messages can carry C0/C1 cont
 
 ## Known caveats
 
+- **WASM dependencies.** `wasm.work` selects the Bubble Tea fork with browser support; native builds use the upstream dependency in `go.mod`. The WASM tasks and CI select this workspace automatically; manual builds need `GOWORK="$PWD/wasm.work" GOOS=js GOARCH=wasm go build -o web/app.wasm ./examples/svgview/`.
 - **Zoom is vector-sharp.** With a document `Renderer` attached, `ZoomIn` / `PanLeft` (etc.) re-rasterize the viewport sub-rectangle via `Renderer.RenderRegion`, so zoomed-in views stay crisp at any depth rather than upscaling a fixed bitmap. Zoom 0 reuses the full-document bitmap (no re-render); each zoom/pan keypress at depth costs one rasterize. A host bitmap installed via `SetImage` has no renderer, so it still crops (chunky-pixel inspection) — there are no vectors to re-rasterize.
 - **`oksvg` supports a broad but not exhaustive slice of SVG.** Filters, advanced gradients, embedded fonts, and CSS-heavy documents may render approximately or skip elements (the parser runs in ignore-errors mode). For pixel-perfect fidelity, wire a custom `RendererFactory` around a stricter rasterizer.
 - **The immediate-mode `Canvas` is a writer, not a layout engine.** It emits exactly the elements you draw. Text is not measured — `text-anchor` positions runs, but you supply the coordinates. This keeps `Canvas` dependency-free and WASM-safe.

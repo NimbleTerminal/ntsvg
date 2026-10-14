@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## v0.4.0 (2026-10-14)
+
+ * Move the browser Bubble Tea `replace` directive out of `go.mod` into `wasm.work` so native consumers use upstream `charm.land/bubbletea/v2` v2.1.0.
+ * Upgrade `ntcharts/v2` to v2.8.0, `go-booba` to v0.9.2, and `charm.land/bubbletea/v2` to v2.1.0 (plus transitive dependencies).
+
 ## v0.3.0 (2026-09-28)
 
  * Default the demo to Kitty graphics once support is detected, preserving manual `g` toggles and glyph fallback.
