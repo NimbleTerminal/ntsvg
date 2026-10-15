@@ -190,7 +190,7 @@ SVG titles, descriptions, element names, and error messages can carry C0/C1 cont
 - **`oksvg` supports a broad but not exhaustive slice of SVG.** Filters, advanced gradients, embedded fonts, and CSS-heavy documents may render approximately or skip elements (the parser runs in ignore-errors mode). For pixel-perfect fidelity, wire a custom `RendererFactory` around a stricter rasterizer.
 - **The immediate-mode `stage.Stage` is a writer, not a layout engine.** It emits exactly the elements you draw. Text is not measured — `text-anchor` positions runs, but you supply the coordinates. This keeps `stage` dependency-free and WASM-safe.
 - **`WriteSVG` / `WritePNG` / `WriteStagePNG` do filesystem I/O** and will fail at runtime under `GOOS=js`. Use `ToSVG` / `Bytes` / `WriteTo` / `RasterizeStage` in the browser.
-- **Kitty placement composition through lipgloss** is best-effort. `ntpicture.Model.View()` embeds the Kitty placement escapes directly in the rendered string, which composes cleanly inside `lipgloss.JoinVertical` and basic borders. Glyph mode has no such caveat.
+- **Kitty placement composition through lipgloss** is best-effort. `ntpicture.Picture.View()` embeds the Kitty placement escapes directly in the rendered string, which composes cleanly inside `lipgloss.JoinVertical` and basic borders. Glyph mode has no such caveat.
 - **Vibe coded.** This comment was inserted by a human.
 
 ## License

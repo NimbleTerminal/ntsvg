@@ -171,8 +171,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		switch msg.String() {
 		case "ctrl+c", "q":
-			_ = m.sv.Close()
-			return m, tea.Quit
+			return m, tea.Sequence(m.sv.Dispose(), tea.Quit)
 		case "?":
 			m.help.ShowAll = !m.help.ShowAll
 			return m, m.resize()

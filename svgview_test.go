@@ -2,8 +2,11 @@ package ntsvg
 
 import (
 	"os"
+	"reflect"
 	"strings"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 // sampleSVG is a small well-formed document exercising most element
@@ -18,6 +21,29 @@ var sampleSVG = []byte(`<?xml version="1.0"?>
   <line x1="0" y1="0" x2="200" y2="100" stroke="white"/>
 </svg>`)
 
+// driveCmd recursively executes a Bubble Tea command tree against m.Update.
+func driveCmd(m Model, cmd tea.Cmd) Model {
+	if cmd == nil {
+		return m
+	}
+	msg := cmd()
+	if msg == nil {
+		return m
+	}
+	v := reflect.ValueOf(msg)
+	if v.Kind() == reflect.Slice {
+		for i := 0; i < v.Len(); i++ {
+			if sub, ok := v.Index(i).Interface().(tea.Cmd); ok {
+				m = driveCmd(m, sub)
+			}
+		}
+		return m
+	}
+	var next tea.Cmd
+	m, next = m.Update(msg)
+	return driveCmd(m, next)
+}
+
 // loadData runs SetSVGData synchronously and feeds the resulting message
 // back through Update, returning the post-load Model.
 func loadData(t *testing.T, m Model, name string, data []byte) Model {
@@ -30,16 +56,16 @@ func loadData(t *testing.T, m Model, name string, data []byte) Model {
 	return m
 }
 
-// rasterize runs Reload synchronously, feeding the renderedMsg back so
-// m.sourceImage is populated.
+// rasterize runs Reload synchronously, feeding the renderedMsg and
+// picture preparation commands back so m.sourceImage and the picture
+// front are populated.
 func rasterize(t *testing.T, m Model) Model {
 	t.Helper()
 	cmd := m.Reload()
 	if cmd == nil {
 		t.Fatal("Reload returned nil Cmd")
 	}
-	m, _ = m.Update(cmd())
-	return m
+	return driveCmd(m, cmd)
 }
 
 func TestLoadSampleData(t *testing.T) {
@@ -308,6 +334,19 @@ func TestNewWithConfig_FitAndAnchor_PictureConfigPrecedence(t *testing.T) {
 	}
 	if m.Anchor() != AnchorBottom {
 		t.Fatalf("expected Anchor to be AnchorBottom from PictureConfig, got %v", m.Anchor())
+	}
+}
+
+func TestNewWithConfig_PictureOptionsRender(t *testing.T) {
+	var cfg Config
+	cfg.PictureOptions.Render.Fit = FitFill
+	cfg.PictureOptions.Render.Anchor = AnchorBottom
+	m := NewWithConfig(cfg)
+	if m.Fit() != FitFill {
+		t.Fatalf("expected FitFill from PictureOptions.Render, got %v", m.Fit())
+	}
+	if m.Anchor() != AnchorBottom {
+		t.Fatalf("expected AnchorBottom from PictureOptions.Render, got %v", m.Anchor())
 	}
 }
 

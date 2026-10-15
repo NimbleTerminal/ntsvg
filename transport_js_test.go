@@ -22,13 +22,11 @@ func TestBrowserSharedMemoryLifecycle(t *testing.T) {
 		KittyMedium: picture.KittyMediumSharedMemory,
 	}})
 	defer m.Close()
-	m.ToggleRenderMode()
-	cmd := m.SetImage(image.NewNRGBA(image.Rect(0, 0, 2, 2)))
-	frame := cmd().(picture.KittyFrameMsg)
-	if frame.Medium != picture.KittyMediumSharedMemory || frame.Format != picture.KittyFormatRGBA {
-		t.Fatalf("expected shared-memory RGBA, got medium=%v format=%v", frame.Medium, frame.Format)
+	m = driveCmd(m, m.ToggleRenderMode())
+	m = driveCmd(m, m.SetImage(image.NewNRGBA(image.Rect(0, 0, 2, 2))))
+	if st := m.PictureStatus(); st.Medium != picture.KittyMediumSharedMemory || st.Format != picture.KittyFormatRGBA {
+		t.Fatalf("expected shared-memory RGBA, got medium=%v format=%v", st.Medium, st.Format)
 	}
-	m, _ = m.Update(frame)
 	if registry.Get("size").Int() != 1 {
 		t.Fatal("expected one pending shared-memory frame")
 	}
@@ -41,8 +39,9 @@ func TestBrowserSharedMemoryLifecycle(t *testing.T) {
 
 	// Older browser terminals must still render through direct PNG.
 	js.Global().Set("ghosttyKittySharedMemory", js.Undefined())
-	frame = m.SetImage(image.NewNRGBA(image.Rect(0, 0, 2, 2)))().(picture.KittyFrameMsg)
-	if frame.Medium != picture.KittyMediumDirect || frame.Format != picture.KittyFormatPNG {
-		t.Fatalf("expected direct PNG fallback, got medium=%v format=%v", frame.Medium, frame.Format)
+	m = driveCmd(m, m.ToggleRenderMode())
+	m = driveCmd(m, m.SetImage(image.NewNRGBA(image.Rect(0, 0, 2, 2))))
+	if st := m.PictureStatus(); st.Medium != picture.KittyMediumDirect || st.Format != picture.KittyFormatPNG {
+		t.Fatalf("expected direct PNG fallback, got medium=%v format=%v", st.Medium, st.Format)
 	}
 }

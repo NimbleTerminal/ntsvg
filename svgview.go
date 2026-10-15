@@ -34,7 +34,8 @@ type Model struct {
 	keys  KeyMap
 	style Styles
 
-	pic        picture.Model
+	pic        *picture.Picture
+	picClosed  *bool
 	cols, rows int
 
 	// name is the display label for the loaded document (file path, or
@@ -54,12 +55,13 @@ type Model struct {
 	// sourceImage is the full-resolution rasterized bitmap from the
 	// most recent Render call. nil until the first successful render.
 	// Cropped on demand to the (zoom, panX, panY) viewport before being
-	// handed to picture.Model.
-	sourceImage image.Image
+	// handed to picture.Picture.
+	sourceImage     image.Image
+	sourceImmutable bool
 
 	// Viewport state. zoom 0 means "fit the whole image to the cell
 	// rect"; zoom N (N >= 1) crops the source to a 1/2^N square that
-	// picture.Model scales back up. panX, panY are the normalized
+	// picture.Picture scales back up. panX, panY are the normalized
 	// [0, 1] coords of the visible rectangle's top-left corner.
 	zoom       int
 	panX, panY float64
@@ -117,6 +119,9 @@ func NewWithConfig(cfg Config) Model {
 		styles = *cfg.Styles
 	}
 
+	if cfg.PictureConfig == (picture.Config{}) && cfg.PictureOptions.Render != (picture.Config{}) {
+		cfg.PictureConfig = cfg.PictureOptions.Render
+	}
 	if cfg.Fit != 0 && cfg.PictureConfig.Fit == 0 {
 		cfg.PictureConfig.Fit = cfg.Fit
 	}
@@ -125,11 +130,12 @@ func NewWithConfig(cfg Config) Model {
 	}
 
 	var lg, rg uint64
+	var closed bool
 	m := Model{
 		cfg:       cfg,
 		keys:      DefaultKeyMap(),
 		style:     styles,
-		pic:       picture.NewModelWithConfig(cfg.PictureConfig),
+		picClosed: &closed,
 		cols:      cfg.Cols,
 		rows:      cfg.Rows,
 		mode:      cfg.DefaultMode,
@@ -137,8 +143,51 @@ func NewWithConfig(cfg Config) Model {
 		loadGen:   &lg,
 		renderGen: &rg,
 	}
-	_ = m.pic.SetSize(cfg.Cols, cfg.Rows)
+	m.pic = m.newPicture()
 	return m
+}
+
+func (m *Model) newPicture() *picture.Picture {
+	opts := m.cfg.PictureOptions
+	renderCfg := m.cfg.PictureConfig
+	if renderCfg == (picture.Config{}) && opts.Render != (picture.Config{}) {
+		renderCfg = opts.Render
+	}
+	opts.Render = renderCfg
+	p := picture.New(opts)
+	_ = p.SetSize(m.cols, m.rows)
+	if m.picClosed != nil {
+		*m.picClosed = false
+	}
+	return p
+}
+
+func (m *Model) ensurePicture() {
+	if m.pic == nil || (m.picClosed != nil && *m.picClosed) {
+		var mode picture.PictureMode
+		var cw, ch int
+		if m.pic != nil {
+			mode = m.pic.Mode()
+			cw, ch = m.pic.CellPixelSize()
+			m.cfg.PictureConfig.Fit = m.pic.Fit()
+			m.cfg.PictureConfig.Anchor = m.pic.Anchor()
+		}
+		m.pic = m.newPicture()
+		if cw > 0 && ch > 0 {
+			_ = m.pic.SetTerminal(mode == picture.PictureKitty, cw, ch)
+		}
+	}
+}
+
+func (m *Model) presentImage(img image.Image, immutable bool) tea.Cmd {
+	m.ensurePicture()
+	if img == nil {
+		return m.pic.SetImage(nil)
+	}
+	if immutable {
+		return m.pic.SetImageImmutable(img)
+	}
+	return m.pic.SetImage(img)
 }
 
 // Mode returns the current rendering mode.
@@ -146,6 +195,38 @@ func (m Model) Mode() Mode { return m.mode }
 
 // RenderMode returns the underlying picture protocol used by RasterMode.
 func (m Model) RenderMode() RenderMode { return m.pic.Mode() }
+
+// SetRenderMode explicitly sets the underlying picture protocol (Glyph or Kitty).
+func (m *Model) SetRenderMode(mode RenderMode) tea.Cmd {
+	m.ensurePicture()
+	return m.pic.SetMode(mode)
+}
+
+// SetTerminal applies an explicit host graphics decision and cell pixel size
+// to the underlying picture.Picture without probing.
+func (m *Model) SetTerminal(kitty bool, cellWidth, cellHeight int) tea.Cmd {
+	m.ensurePicture()
+	return m.pic.SetTerminal(kitty, cellWidth, cellHeight)
+}
+
+// SetResolution sets the Kitty raster resolution factor in (0, 1] on the
+// underlying picture.Picture.
+func (m *Model) SetResolution(factor float64) tea.Cmd {
+	m.ensurePicture()
+	return m.pic.SetResolution(factor)
+}
+
+// RasterGeometry returns the target cell and pixel geometry of the underlying
+// picture.Picture.
+func (m Model) RasterGeometry() picture.RasterGeometry {
+	return m.pic.RasterGeometry()
+}
+
+// PictureStatus returns the current preparation/presentation snapshot from the
+// underlying picture.Picture.
+func (m Model) PictureStatus() picture.Status {
+	return m.pic.Status()
+}
 
 // Name returns the display label for the currently-loaded document.
 // Empty when nothing has been loaded. Hosts wanting a short filename for
@@ -185,9 +266,14 @@ func (m Model) Err() error { return m.err }
 func (m Model) Image() image.Image { return m.sourceImage }
 
 // KittySupported reports the terminal's Kitty graphics capability. The
-// probe runs once per process; expect KittyCapabilityUnknown for the
+// probe runs once per session/process; expect KittyCapabilityUnknown for the
 // first few frames until the terminal responds.
-func (m Model) KittySupported() picture.KittyCapability { return m.pic.KittySupported() }
+func (m Model) KittySupported() picture.KittyCapability {
+	if m.cfg.PictureOptions.Session != nil {
+		return m.cfg.PictureOptions.Session.Snapshot().Kitty
+	}
+	return picture.KittySupported()
+}
 
 // HasRenderer reports whether an active Renderer is attached to the
 // loaded document. False means RasterMode falls back to InfoMode —
@@ -199,12 +285,34 @@ func (m Model) HasRenderer() bool { return m.cur != nil }
 // unavailable. Cleared on the next load.
 func (m Model) RendererErr() error { return m.rendererErr }
 
+// Dispose cancels pending picture work, releases shared-memory buffers, closes
+// any attached SVG renderer, and returns the terminal placement cleanup Cmd
+// from ntpicture.Picture. Run the returned command when removing the widget or
+// before quitting.
+func (m *Model) Dispose() tea.Cmd {
+	var cmd tea.Cmd
+	if m.pic != nil {
+		cmd = m.pic.Close()
+		if m.picClosed != nil {
+			*m.picClosed = true
+		}
+	}
+	if m.cur != nil {
+		_ = m.cur.Close()
+		m.cur = nil
+	}
+	return cmd
+}
+
 // Close releases picture transport and renderer-side resources held by the loaded
 // document. Safe to call when nothing is loaded.
 func (m *Model) Close() error {
-	// Shared-memory frames must be released even for caller-supplied images
-	// that have no SVG renderer. Terminal cleanup is unnecessary on disposal.
-	_ = m.pic.SetImage(nil)
+	if m.pic != nil {
+		_ = m.pic.Close()
+		if m.picClosed != nil {
+			*m.picClosed = true
+		}
+	}
 	if m.cur == nil {
 		return nil
 	}
@@ -216,12 +324,13 @@ func (m *Model) Close() error {
 // KeyMap exposes the active bindings; mutate fields to rebind.
 func (m *Model) KeyMap() *KeyMap { return &m.keys }
 
-// SetSize updates the cell rectangle and forwards to the picture.Model.
-// The returned Cmd may carry a Kitty re-placement frame; batch it
+// SetSize updates the cell rectangle and forwards to the picture.Picture.
+// The returned Cmd prepares a re-sized placement frame; batch it
 // through the program's tea.Cmd pipeline. The rasterized bitmap is
 // resolution-independent of the cell rect, so no re-rasterize is needed.
 func (m *Model) SetSize(cols, rows int) tea.Cmd {
 	m.cols, m.rows = cols, rows
+	m.ensurePicture()
 	return m.pic.SetSize(cols, rows)
 }
 
@@ -288,6 +397,7 @@ func (m *Model) SetImage(img image.Image) tea.Cmd {
 	}
 	m.prevDoc = nil
 	m.sourceImage = img
+	m.sourceImmutable = false
 	m.err = nil
 	return m.applyViewport()
 }
@@ -310,6 +420,7 @@ func (m *Model) SetImageAndRenderer(img image.Image, r Renderer, doc *Document) 
 	m.doc = doc
 	m.prevDoc = nil
 	m.sourceImage = img
+	m.sourceImmutable = false
 	m.err = nil
 	return m.applyViewport()
 }
@@ -330,7 +441,17 @@ func (m *Model) ToggleMode() tea.Cmd {
 }
 
 // ToggleRenderMode swaps Glyph↔Kitty for RasterMode rendering.
-func (m *Model) ToggleRenderMode() tea.Cmd { return m.pic.Toggle() }
+// Entering Kitty mode is a no-op until Kitty support is confirmed.
+func (m *Model) ToggleRenderMode() tea.Cmd {
+	m.ensurePicture()
+	if m.pic.Mode() == picture.PictureGlyph {
+		if m.KittySupported() != picture.KittyCapabilitySupported {
+			return nil
+		}
+		return m.pic.SetMode(picture.PictureKitty)
+	}
+	return m.pic.SetMode(picture.PictureGlyph)
+}
 
 // Reload re-rasterizes the current SVG (no-op when no renderer is attached).
 func (m *Model) Reload() tea.Cmd {
@@ -374,7 +495,7 @@ func (m *Model) PanUp() tea.Cmd    { return m.pan(0, -1) }
 func (m *Model) PanDown() tea.Cmd  { return m.pan(0, +1) }
 
 // Fit returns the current FitMode (how the bitmap is mapped onto the
-// cell rectangle by picture.Model).
+// cell rectangle by picture.Picture).
 func (m Model) Fit() FitMode { return m.pic.Fit() }
 
 // CycleFit advances the FitMode through Contain → Fill → Cover → Contain.
@@ -388,19 +509,21 @@ func (m *Model) CycleFit() tea.Cmd {
 	case FitCover:
 		next = FitContain
 	}
-	return m.pic.SetFit(next)
+	return m.SetFit(next)
 }
 
-// SetFit updates the FitMode. Forwards to the embedded picture.Model.
+// SetFit updates the FitMode on the underlying picture.Picture.
 func (m *Model) SetFit(fit FitMode) tea.Cmd {
+	m.ensurePicture()
 	return m.pic.SetFit(fit)
 }
 
 // Anchor returns the current FitAnchor.
 func (m Model) Anchor() FitAnchor { return m.pic.Anchor() }
 
-// SetAnchor updates the FitAnchor. Forwards to the embedded picture.Model.
+// SetAnchor updates the FitAnchor on the underlying picture.Picture.
 func (m *Model) SetAnchor(anchor FitAnchor) tea.Cmd {
+	m.ensurePicture()
 	return m.pic.SetAnchor(anchor)
 }
 
@@ -418,7 +541,7 @@ func (m *Model) ResetView() tea.Cmd {
 
 // Init returns a Cmd that kicks off the initial load (when either
 // Config.InitialData or Config.InitialPath is set) plus the picture
-// model's own init (Kitty capability probe). InitialData wins over
+// controller's own init (Kitty capability probe). InitialData wins over
 // InitialPath when present, including the explicit empty-slice case.
 func (m Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{m.pic.Init()}
@@ -469,7 +592,7 @@ func copyBytes(b []byte) []byte {
 	return c
 }
 
-// Update routes messages through the picture.Model, consumes the
+// Update routes messages through the picture.Picture, consumes the
 // widget's async load/render notifications, and dispatches the KeyMap
 // bindings.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
@@ -498,7 +621,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.err = nil
 		if m.cur == nil {
 			m.sourceImage = nil
-			if c := m.pic.SetImage(nil); c != nil {
+			m.sourceImmutable = false
+			if c := m.presentImage(nil, true); c != nil {
 				cmds = append(cmds, c)
 			}
 		} else if c := m.renderCmd(); c != nil {
@@ -511,6 +635,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.doc = nil
 			m.prevDoc = nil
 			m.sourceImage = nil
+			m.sourceImmutable = false
 		}
 
 	case renderedMsg:
@@ -521,7 +646,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		if msg.region {
 			// A viewport re-render: display-only. The canonical
 			// full-document bitmap (Image(), zoom 0) is left untouched.
-			if c := m.pic.SetImage(msg.img); c != nil {
+			if c := m.presentImage(msg.img, true); c != nil {
 				cmds = append(cmds, c)
 			}
 		} else {
@@ -529,6 +654,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			// Route through applyViewport so a zoom that happened while
 			// the load was in flight is still honored.
 			m.sourceImage = msg.img
+			m.sourceImmutable = true
 			if c := m.applyViewport(); c != nil {
 				cmds = append(cmds, c)
 			}
@@ -538,14 +664,16 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		if msg.gen == *m.renderGen && msg.loadGen == *m.loadGen {
 			m.err = msg.err
 			m.sourceImage = nil
+			m.sourceImmutable = false
 		}
 	}
 
-	// Forward every message to the picture model so it reacts to Kitty
-	// frame applications and resize notifications. picture.Update is a
-	// no-op for messages it doesn't recognize.
-	if c := m.pic.Update(msg); c != nil {
-		cmds = append(cmds, c)
+	// Forward every message to the picture controller so it reacts to
+	// prepared frames, placement retirements, and terminal notifications.
+	if m.pic != nil {
+		if c := m.pic.Update(msg); c != nil {
+			cmds = append(cmds, c)
+		}
 	}
 
 	return m, tea.Batch(cmds...)
@@ -642,18 +770,24 @@ func (m Model) View() tea.View {
 		// that have no parsed Document. This must win over the "Loading"
 		// placeholder so a SetImage during an unrelated in-flight load
 		// is not hidden behind it.
-		//
+		var content string
+		if m.pic != nil {
+			content = m.pic.View()
+		}
+		if content == "" && m.pic != nil && m.pic.Status().Busy && m.activeDoc() != nil && m.name != "" {
+			return tea.NewView(m.placeholderView(m.style.Status,
+				fmt.Sprintf("Loading %s…", SanitizeForTerminal(m.name))))
+		}
 		// Pin picture's content to the full (cols × rows) envelope so
 		// the host's surrounding border stays a stable size across
 		// mode and fit transitions.
-		pv := m.pic.View()
 		if m.cols > 0 && m.rows > 0 {
-			pv.Content = lipgloss.Place(m.cols, m.rows, lipgloss.Left, lipgloss.Top, pv.Content)
+			content = lipgloss.Place(m.cols, m.rows, lipgloss.Left, lipgloss.Top, content)
 		}
 		if m.mode == InfoMode {
-			pv.Content = m.overlayInfoView(pv.Content)
+			content = m.overlayInfoView(content)
 		}
-		return pv
+		return tea.NewView(content)
 	}
 	if m.name == "" {
 		return tea.NewView(m.placeholderView(m.style.Status, "No SVG loaded"))

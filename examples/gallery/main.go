@@ -131,8 +131,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if demohelp.Quit(msg) {
-			_ = m.sv.Close()
-			return m, tea.Quit
+			return m, tea.Sequence(m.sv.Dispose(), tea.Quit)
 		}
 		if key.Matches(msg, m.sv.KeyMap().ToggleRender) {
 			m.preferKitty = false
@@ -143,12 +142,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "p", "shift+tab":
 			return m, m.selectSample(m.index - 1)
 		case "r":
-			m.sv.SetFit(ntsvg.FitContain)
+			fitCmd := m.sv.SetFit(ntsvg.FitContain)
 			var modeCmd tea.Cmd
 			if m.sv.Mode() != ntsvg.RasterMode {
 				modeCmd = m.sv.ToggleMode()
 			}
-			return m, tea.Batch(modeCmd, m.selectSample(0))
+			return m, tea.Batch(fitCmd, modeCmd, m.selectSample(0))
 		}
 	}
 

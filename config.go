@@ -14,7 +14,7 @@ type Mode int8
 
 const (
 	// RasterMode rasterizes the SVG to a bitmap and renders it via
-	// ntpicture.Model — half-block glyphs everywhere, Kitty graphics on
+	// ntpicture.Picture — half-block glyphs everywhere, Kitty graphics on
 	// terminals that support them. This is the default: unlike PDF
 	// rasterization, the SVG rasterizer (oksvg/rasterx) is pure Go, so
 	// RasterMode works on every build target including WASM.
@@ -39,7 +39,7 @@ const (
 
 // FitMode controls how the rasterized image is mapped onto the cell
 // rectangle. Re-exported from ntpicture so callers can drive
-// picture.Model behavior (Contain / Fill / Cover) through ntsvg's API
+// picture.Picture behavior (Contain / Fill / Cover) through ntsvg's API
 // surface.
 type FitMode = picture.FitMode
 
@@ -239,7 +239,12 @@ type Config struct {
 	// crop overflow. Zero value is AnchorCenter.
 	Anchor FitAnchor
 
-	// PictureConfig is forwarded verbatim to the underlying picture.Model.
+	// PictureOptions configures the underlying ntpicture.Picture (such as
+	// a shared TerminalSession, NextID allocator, StableID, or RetireDelay).
+	PictureOptions picture.Options
+
+	// PictureConfig is forwarded to the underlying ntpicture.Picture's
+	// Render configuration.
 	PictureConfig picture.Config
 
 	// Styles overrides the default lipgloss styling. Nil uses DefaultStyles.

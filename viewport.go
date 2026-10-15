@@ -123,7 +123,7 @@ func (m *Model) applyViewport() tea.Cmd {
 			if m.sourceImage == nil {
 				return nil
 			}
-			return m.pic.SetImage(m.sourceImage)
+			return m.presentImage(m.sourceImage, m.sourceImmutable)
 		}
 		return m.renderRegionCmd()
 	}
@@ -131,7 +131,7 @@ func (m *Model) applyViewport() tea.Cmd {
 		return nil
 	}
 	view := cropToViewport(m.sourceImage, m.zoom, m.panX, m.panY)
-	return m.pic.SetImage(view)
+	return m.presentImage(view, false)
 }
 
 // cropToViewport returns the sub-image described by (zoom, panX, panY)
