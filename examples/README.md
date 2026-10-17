@@ -15,7 +15,7 @@ interactive demos at `http://localhost:8000/web/`.
 
 ## Sample SVG Files
 
-Curated SVG samples live in [`examples/gallery/samples/`](file:///Users/evan/projects/ntcharts-svg/examples/gallery/samples):
+Curated SVG samples live in [`examples/gallery/samples/`](./gallery/samples):
 
 - `01-shapes.svg` — overlapping translucent circles, rounded rectangles, polygons, polylines, and text
 - `02-gradients.svg` — multi-stop linear and radial gradients with transforms and gradient-stroked Bezier paths

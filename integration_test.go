@@ -43,8 +43,8 @@ func TestLoadSampleFile(t *testing.T) {
 	if w != 320 || h != 240 {
 		t.Errorf("ViewBox() = %g×%g, want 320×240", w, h)
 	}
-	if m.Title() != "ntcharts-svg sample" && m.Title() != "ntsvg sample" {
-		t.Errorf("Title() = %q", m.Title())
+	if m.Title() != "ntsvg sample" {
+		t.Errorf("Title() = %q, want %q", m.Title(), "ntsvg sample")
 	}
 
 	m = rasterize(t, m)
