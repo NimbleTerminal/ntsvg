@@ -21,6 +21,7 @@ package ntsvg
 import (
 	"fmt"
 	"image"
+	"image/color"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -163,13 +164,19 @@ func (m *Model) ensurePicture() {
 		var autoMode bool
 		var cw, ch int
 		var cap picture.KittyCapability
+		var vp picture.Viewport
+		var hasVP bool
+		visible := true
 		if m.pic != nil {
 			mode = m.pic.Mode()
 			autoMode = m.pic.AutoMode()
 			cw, ch = m.pic.CellPixelSize()
 			cap = m.pic.KittySupported()
+			visible = m.pic.Visible()
+			vp, hasVP = m.pic.Viewport()
 			m.cfg.PictureConfig.Fit = m.pic.Fit()
 			m.cfg.PictureConfig.Anchor = m.pic.Anchor()
+			m.cfg.PictureConfig.Background = m.pic.Background()
 			m.cfg.PictureConfig.KittyResolutionFactor = m.pic.Resolution()
 			m.cfg.PictureConfig.MaxRasterPixels = m.pic.MaxRasterPixels()
 			m.cfg.PictureOptions.AutoMode = autoMode
@@ -186,18 +193,28 @@ func (m *Model) ensurePicture() {
 				_ = m.pic.SetTerminal(mode == picture.PictureKitty, cw, ch)
 			}
 		}
+		if !visible {
+			_ = m.pic.SetVisible(false)
+		}
+		if hasVP {
+			m.pic.SetViewport(vp)
+		}
 	}
 }
 
 func (m *Model) presentImage(img image.Image, immutable bool) tea.Cmd {
+	return m.presentImageCropped(img, image.Rectangle{}, immutable)
+}
+
+func (m *Model) presentImageCropped(img image.Image, crop image.Rectangle, immutable bool) tea.Cmd {
 	m.ensurePicture()
 	if img == nil {
-		return m.pic.SetImage(nil)
+		return m.pic.SetImageImmutableCropped(nil, image.Rectangle{})
 	}
 	if immutable {
-		return m.pic.SetImageImmutable(img)
+		return m.pic.SetImageImmutableCropped(img, crop)
 	}
-	return m.pic.SetImage(img)
+	return m.pic.SetImageCropped(img, crop)
 }
 
 // Mode returns the current rendering mode.
@@ -236,6 +253,14 @@ func (m *Model) SetCellSize(cellWidth, cellHeight int) tea.Cmd {
 	return m.pic.SetCellSize(cellWidth, cellHeight)
 }
 
+// CellPixelSize reports the active terminal cell pixel dimensions (width, height).
+func (m Model) CellPixelSize() (int, int) {
+	if m.pic != nil {
+		return m.pic.CellPixelSize()
+	}
+	return 8, 16
+}
+
 // SetKittyCapability updates the terminal session's Kitty capability on the
 // underlying picture.Picture while preserving AutoMode.
 func (m *Model) SetKittyCapability(cap picture.KittyCapability) tea.Cmd {
@@ -243,11 +268,78 @@ func (m *Model) SetKittyCapability(cap picture.KittyCapability) tea.Cmd {
 	return m.pic.SetKittyCapability(cap)
 }
 
+// Resolution reports the configured Kitty raster resolution factor in (0, 1].
+func (m Model) Resolution() float64 { return m.pic.Resolution() }
+
 // SetResolution sets the Kitty raster resolution factor in (0, 1] on the
 // underlying picture.Picture.
 func (m *Model) SetResolution(factor float64) tea.Cmd {
 	m.ensurePicture()
 	return m.pic.SetResolution(factor)
+}
+
+// MaxRasterPixels reports the configured Kitty raster pixel cap (0 when uncapped).
+func (m Model) MaxRasterPixels() int { return m.pic.MaxRasterPixels() }
+
+// SetMaxRasterPixels sets the Kitty raster pixel cap on the underlying
+// picture.Picture. Zero or negative removes the cap.
+func (m *Model) SetMaxRasterPixels(maxPixels int) tea.Cmd {
+	m.ensurePicture()
+	return m.pic.SetMaxRasterPixels(maxPixels)
+}
+
+// Background reports the configured background color of the underlying
+// picture.Picture.
+func (m Model) Background() color.Color { return m.pic.Background() }
+
+// SetBackground changes the color composited behind translucent pixels and
+// letterbox areas on the underlying picture.Picture.
+func (m *Model) SetBackground(c color.Color) tea.Cmd {
+	m.ensurePicture()
+	return m.pic.SetBackground(c)
+}
+
+// Visible reports whether the underlying picture.Picture is currently visible.
+func (m Model) Visible() bool { return m.pic.Visible() }
+
+// SetVisible hides or shows the underlying picture.Picture placement while
+// retaining source pixels.
+func (m *Model) SetVisible(visible bool) tea.Cmd {
+	m.ensurePicture()
+	return m.pic.SetVisible(visible)
+}
+
+// Size reports the configured cell dimensions (cols, rows).
+func (m Model) Size() (cols, rows int) {
+	if m.pic != nil {
+		return m.pic.Size()
+	}
+	return m.cols, m.rows
+}
+
+// Crop reports the active source-pixel crop rectangle on the underlying
+// picture.Picture (empty when uncropped).
+func (m Model) Crop() image.Rectangle { return m.pic.Crop() }
+
+// SetViewport clips the underlying picture.Picture's View to v, measured in
+// picture cells from the top-left of SetSize.
+func (m *Model) SetViewport(v Viewport) {
+	m.ensurePicture()
+	m.pic.SetViewport(v)
+}
+
+// ResetViewport clears any cell viewport set by SetViewport on the underlying
+// picture.Picture.
+func (m *Model) ResetViewport() {
+	if m.pic != nil {
+		m.pic.ResetViewport()
+	}
+}
+
+// Viewport reports the active cell viewport on the underlying picture.Picture
+// and whether one is set.
+func (m Model) Viewport() (Viewport, bool) {
+	return m.pic.Viewport()
 }
 
 // RasterGeometry returns the target cell and pixel geometry of the underlying
@@ -260,6 +352,24 @@ func (m Model) RasterGeometry() picture.RasterGeometry {
 // underlying picture.Picture.
 func (m Model) PictureStatus() picture.Status {
 	return m.pic.Status()
+}
+
+// Session returns the TerminalSession associated with the underlying
+// picture.Picture.
+func (m Model) Session() *picture.TerminalSession {
+	if m.pic != nil {
+		return m.pic.Session()
+	}
+	return nil
+}
+
+// TerminalState returns a snapshot of the terminal session associated with the
+// underlying picture.Picture.
+func (m Model) TerminalState() picture.TerminalState {
+	if m.pic != nil {
+		return m.pic.TerminalState()
+	}
+	return picture.TerminalState{}
 }
 
 // Name returns the display label for the currently-loaded document.
@@ -319,6 +429,51 @@ func (m Model) HasRenderer() bool { return m.cur != nil }
 // unavailable. Cleared on the next load.
 func (m Model) RendererErr() error { return m.rendererErr }
 
+// Stop cancels pending picture preparation or transmission while preserving
+// the last committed View and terminal placement, and invalidates any in-flight
+// SVG rasterization. Unlike Keep or Dispose, Stop is not final.
+func (m *Model) Stop() tea.Cmd {
+	bump(m.renderGen)
+	if m.pic != nil {
+		return m.pic.Stop()
+	}
+	return nil
+}
+
+// Keep permanently stops picture work while preserving the last presented View
+// and terminal image on the current screen, and closes any attached SVG
+// renderer and owned session. When switching Bubble Tea's View().AltScreen from
+// true to false on exit, use KeepOnMainScreen instead.
+func (m *Model) Keep() tea.Cmd {
+	var cmd tea.Cmd
+	if m.pic != nil {
+		cmd = m.pic.Keep()
+	}
+	m.sourceImagePresented = false
+	if m.cur != nil {
+		_ = m.cur.Close()
+		m.cur = nil
+	}
+	return cmd
+}
+
+// KeepOnMainScreen permanently stops picture work like Keep, but always
+// retransmits and recreates the retained Kitty placement directly so it
+// survives a terminal screen switch from the alternate screen (ESC[?1049l) to
+// the main screen, and closes any attached SVG renderer and owned session.
+func (m *Model) KeepOnMainScreen() tea.Cmd {
+	var cmd tea.Cmd
+	if m.pic != nil {
+		cmd = m.pic.KeepOnMainScreen()
+	}
+	m.sourceImagePresented = false
+	if m.cur != nil {
+		_ = m.cur.Close()
+		m.cur = nil
+	}
+	return cmd
+}
+
 // Dispose cancels pending picture work, releases shared-memory buffers, closes
 // any attached SVG renderer, and returns the terminal placement cleanup Cmd
 // from ntpicture.Picture. Run the returned command when removing the widget or
@@ -328,6 +483,7 @@ func (m *Model) Dispose() tea.Cmd {
 	if m.pic != nil {
 		cmd = m.pic.Close()
 	}
+	m.sourceImagePresented = false
 	if m.cur != nil {
 		_ = m.cur.Close()
 		m.cur = nil
@@ -341,6 +497,7 @@ func (m *Model) Close() error {
 	if m.pic != nil {
 		_ = m.pic.Close()
 	}
+	m.sourceImagePresented = false
 	if m.cur == nil {
 		return nil
 	}

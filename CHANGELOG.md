@@ -4,7 +4,9 @@
 
  * **Breaking:** rename module from `github.com/NimbleMarkets/ntcharts-svg` to `nimbleterminal.dev/ntsvg` (`package ntsvg` at the module root).
  * **Breaking:** extract the immediate-mode vector `Canvas` into `nimbleterminal.dev/ntsvg/stage` (`stage.Stage`, `stage.New`, `Chart.BarStage`, `Chart.LineStage`), keeping `stage` stdlib-only and pairing with `ntsvg.Model.ShowStage`, `ntsvg.RasterizeStage`, and `ntsvg.WriteStagePNG`.
- * Migrate terminal picture rendering from `github.com/NimbleMarkets/ntcharts/v2/picture` to `nimbleterminal.dev/ntpicture`.
+ * Migrate terminal picture rendering from `github.com/NimbleMarkets/ntcharts/v2/picture` to `nimbleterminal.dev/ntpicture` `v0.1.0`.
+ * Isolate `go-booba` and browser asset tools in `examples/go.mod` so library consumers only pull core dependencies.
+ * Expose `ntpicture.Picture` configuration and lifecycle controls on `Config` and `Model` (`RenderAuto`, `AutoRenderMode`, `Crop`, `Viewport`, `Stop`, `Keep`, `KeepOnMainScreen`, `Dispose`, `Session`, `TerminalState`, `SetTerminal`, `SetCellSize`, `CellPixelSize`, `SetKittyCapability`, `Resolution`, `SetResolution`, `MaxRasterPixels`, `SetMaxRasterPixels`, `Background`, `SetBackground`, `Visible`, `SetVisible`, `Size`, `RasterGeometry`, and `PictureStatus`).
 
 ## v0.4.0 (2026-10-14)
 

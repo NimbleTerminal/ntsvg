@@ -62,6 +62,10 @@ const (
 	AnchorRight  = picture.AnchorRight
 )
 
+// Viewport selects a cell rectangle within the widget's full SetSize
+// dimensions. Re-exported from ntpicture.
+type Viewport = picture.Viewport
+
 // DefaultRenderEdge is the target length, in pixels, of the longer edge
 // of the rasterized bitmap when Config.RenderEdge is unset. The SVG is
 // drawn once at this resolution; ZoomIn then crops into the bitmap, so a

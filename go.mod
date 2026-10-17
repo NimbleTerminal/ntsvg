@@ -2,15 +2,10 @@ module nimbleterminal.dev/ntsvg
 
 go 1.26.8
 
-// booba-assets stages the WASM demo site (wasm_exec.js + the booba
-// terminal runtime) into web/ — see the build-wasm-site Taskfile task.
-tool github.com/NimbleMarkets/go-booba/cmd/booba-assets
-
 require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.1.0
 	charm.land/lipgloss/v2 v2.0.6
-	github.com/NimbleMarkets/go-booba v0.9.2
 	github.com/NimbleMarkets/oksvg v0.1.1
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
@@ -29,7 +24,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.31 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/xo/terminfo v1.2.0 // indirect
 	golang.org/x/image v0.47.0 // indirect
 	golang.org/x/net v0.61.0 // indirect

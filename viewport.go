@@ -121,23 +121,22 @@ func (m *Model) pan(dx, dy float64) tea.Cmd {
 func (m *Model) applyViewport() tea.Cmd {
 	m.ensurePicture()
 	if m.cur != nil {
-		cropCmd := m.pic.ResetCrop()
 		if m.zoom == 0 {
 			if m.sourceImage == nil {
-				return cropCmd
+				return m.pic.ResetCrop()
 			}
-			return tea.Batch(cropCmd, m.presentImage(m.sourceImage, m.sourceImmutable))
+			return m.presentImageCropped(m.sourceImage, image.Rectangle{}, m.sourceImmutable)
 		}
-		return tea.Batch(cropCmd, m.renderRegionCmd())
+		return tea.Batch(m.pic.ResetCrop(), m.renderRegionCmd())
 	}
 	if m.sourceImage == nil {
-		return m.pic.ResetCrop()
+		m.sourceImagePresented = false
+		return m.presentImageCropped(nil, image.Rectangle{}, true)
 	}
 	crop := viewportCropRect(m.sourceImage, m.zoom, m.panX, m.panY)
 	if !m.sourceImagePresented {
 		m.sourceImagePresented = true
-		_ = m.pic.SetCrop(crop)
-		return m.presentImage(m.sourceImage, m.sourceImmutable)
+		return m.presentImageCropped(m.sourceImage, crop, m.sourceImmutable)
 	}
 	return m.pic.SetCrop(crop)
 }

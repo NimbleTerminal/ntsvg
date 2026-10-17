@@ -23,19 +23,23 @@ tasks:
     run: once
     cmds:
       - go mod tidy
+      - go -C examples mod tidy
 
   go-update:
     desc: 'Go update all the dependencies'
     run: once
     cmds:
       - go get -u ./...
-      - go get -u tool
+      - go -C examples get -u ./...
+      - go -C examples get -u tool
       - go mod tidy
+      - go -C examples mod tidy
 
   test:
     desc: 'Run all Go tests'
     cmds:
       - go test ./...
+      - go -C examples test ./...
 
   test-wasm:
     desc: 'Run all Go tests under Node WASM'
@@ -44,12 +48,13 @@ tasks:
       GOOS: js
       GOARCH: wasm
     cmds:
-      - 'go test -exec="$(go env GOROOT)/lib/wasm/go_js_wasm_exec" ./...'
+      - 'go test -exec="$(go env GOROOT)/lib/wasm/go_js_wasm_exec" ./... ./examples/...'
 
   vet:
     desc: 'Run go vet'
     cmds:
       - go vet ./...
+      - go -C examples vet ./...
 
   build:
     desc: 'Build library and native examples'
@@ -69,19 +74,19 @@ tasks:
 
   run-gallery:
     desc: 'Run the embedded SVG sample gallery'
-    cmds: ['go run ./examples/gallery']
+    cmds: ['go -C examples run ./gallery']
 
   run-stage:
     desc: 'Run the immediate-mode vector stage demo'
-    cmds: ['go run ./examples/stage']
+    cmds: ['go -C examples run ./stage']
 
   run-charts:
     desc: 'Run the interactive stage.Chart builder demo'
-    cmds: ['go run ./examples/charts']
+    cmds: ['go -C examples run ./charts']
 
   run-svgview:
     desc: 'Run the single-pane SVG viewer demo'
-    cmds: ['go run ./examples/svgview']
+    cmds: ['go -C examples run ./svgview']
 
   build-examples:
     desc: 'Build all native demos'
@@ -90,7 +95,7 @@ tasks:
     cmds:
       - mkdir -p bin
       - for: [gallery, stage, charts, svgview]
-        cmd: go build -o bin/ntsvg-{{.ITEM}} ./examples/{{.ITEM}}
+        cmd: go -C examples build -o ../bin/ntsvg-{{.ITEM}} ./{{.ITEM}}
 
   build-ex-svgview:
     desc: 'Build the svgview example'
@@ -98,7 +103,7 @@ tasks:
       - go-tidy
     cmds:
       - mkdir -p bin
-      - go build -o bin/ntsvg-svgview ./examples/svgview
+      - go -C examples build -o ../bin/ntsvg-svgview ./svgview
 
 ###############################################################################
 # Demo website via booba
@@ -117,13 +122,13 @@ tasks:
     cmds:
       - mkdir -p web/demos
       - for: [gallery, stage, charts, svgview]
-        cmd: go build -o web/demos/{{.ITEM}}.wasm ./examples/{{.ITEM}}
+        cmd: go -C examples build -o ../web/demos/{{.ITEM}}.wasm ./{{.ITEM}}
 
   build-wasm-site:
     desc: 'Build browser demos and export the pinned booba runtime into web/'
     cmds:
       - task: build-wasm
-      - go tool booba-assets --no-index web
+      - go -C examples tool booba-assets --no-index ../web
       - cp LICENSE.txt web/LICENSE
       - task: check-site
 
