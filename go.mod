@@ -2,6 +2,9 @@ module nimbleterminal.dev/ntsvg
 
 go 1.26.8
 
+// Pre-rename tags published under github.com/NimbleMarkets/ntcharts-svg.
+retract [v0.1.0, v0.4.0]
+
 require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.1.0
