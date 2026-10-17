@@ -35,6 +35,7 @@ type RenderMode = picture.PictureMode
 const (
 	RenderGlyph = picture.PictureGlyph // universal half-block ANSI
 	RenderKitty = picture.PictureKitty // high-resolution Kitty graphics
+	RenderAuto  = picture.PictureAuto  // automatic Kitty/Glyph selection from terminal capability
 )
 
 // FitMode controls how the rasterized image is mapped onto the cell

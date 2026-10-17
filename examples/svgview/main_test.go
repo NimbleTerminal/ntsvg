@@ -9,10 +9,10 @@ import (
 )
 
 func TestDemoPrefersKittyWhenAvailable(t *testing.T) {
-	previous := picture.KittySupported()
-	t.Cleanup(func() { picture.ForceKittyCapability(previous) })
-	picture.ForceKittyCapability(picture.KittyCapabilityUnknown)
+	t.Setenv("NTPICTURE_KITTY", "")
+	t.Setenv("TERM", "dumb")
 	m := initialModel(ntsvg.Config{})
+	defer func() { _ = m.sv.Close() }()
 	update := func(msg tea.Msg) {
 		next, _ := m.Update(msg)
 		m = next.(model)
@@ -20,15 +20,13 @@ func TestDemoPrefersKittyWhenAvailable(t *testing.T) {
 	for _, capability := range []picture.KittyCapability{
 		picture.KittyCapabilityUnknown, picture.KittyCapabilityUnsupported,
 	} {
-		picture.ForceKittyCapability(capability)
-		update(nil)
+		update(picture.KittyCapabilityMsg{Capability: capability})
 		if m.sv.RenderMode() != ntsvg.RenderGlyph {
 			t.Fatal("selected Kitty without confirmed support")
 		}
 	}
 	// A positive reply arriving after the probe timeout must still select Kitty.
-	picture.ForceKittyCapability(picture.KittyCapabilitySupported)
-	update(nil)
+	update(picture.KittyCapabilityMsg{Capability: picture.KittyCapabilitySupported})
 	if m.sv.RenderMode() != ntsvg.RenderKitty {
 		t.Fatal("did not select Kitty after support was confirmed")
 	}
@@ -39,11 +37,10 @@ func TestDemoPrefersKittyWhenAvailable(t *testing.T) {
 	}
 
 	// Manual input while detection is pending also takes precedence.
-	picture.ForceKittyCapability(picture.KittyCapabilityUnknown)
 	m = initialModel(ntsvg.Config{})
+	defer func() { _ = m.sv.Close() }()
 	update(tea.KeyPressMsg{Code: 'g', Text: "g"})
-	picture.ForceKittyCapability(picture.KittyCapabilitySupported)
-	update(nil)
+	update(picture.KittyCapabilityMsg{Capability: picture.KittyCapabilitySupported})
 	if m.sv.RenderMode() != ntsvg.RenderGlyph {
 		t.Fatal("late detection overrode a manual choice")
 	}

@@ -96,21 +96,20 @@ type model struct {
 	help          help.Model
 	keys          appKeys
 	width, height int
-	preferKitty   bool
 
 	lastChart *stage.Stage
 	notice    string
 }
 
 func initialModel(cfg ntsvg.Config) model {
+	cfg.PictureOptions.AutoMode = true
 	if runtime.GOOS == "js" {
 		cfg.PictureConfig.KittyMedium = picture.KittyMediumSharedMemory
 	}
 	return model{
-		sv:          ntsvg.NewWithConfig(cfg),
-		help:        help.New(),
-		keys:        newAppKeys(),
-		preferKitty: true,
+		sv:   ntsvg.NewWithConfig(cfg),
+		help: help.New(),
+		keys: newAppKeys(),
 	}
 }
 
@@ -166,9 +165,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.resize()
 
 	case tea.KeyMsg:
-		if key.Matches(msg, m.sv.KeyMap().ToggleRender) {
-			m.preferKitty = false
-		}
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Sequence(m.sv.Dispose(), tea.Quit)
@@ -201,12 +197,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 	m.sv, cmd = m.sv.Update(msg)
-	if m.preferKitty && m.sv.KittySupported() == picture.KittyCapabilitySupported {
-		m.preferKitty = false
-		if m.sv.RenderMode() != ntsvg.RenderKitty {
-			cmd = tea.Batch(cmd, m.sv.ToggleRenderMode())
-		}
-	}
 	return m, cmd
 }
 

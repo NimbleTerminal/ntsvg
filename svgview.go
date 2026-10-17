@@ -35,7 +35,6 @@ type Model struct {
 	style Styles
 
 	pic        *picture.Picture
-	picClosed  *bool
 	cols, rows int
 
 	// name is the display label for the loaded document (file path, or
@@ -56,8 +55,9 @@ type Model struct {
 	// most recent Render call. nil until the first successful render.
 	// Cropped on demand to the (zoom, panX, panY) viewport before being
 	// handed to picture.Picture.
-	sourceImage     image.Image
-	sourceImmutable bool
+	sourceImage          image.Image
+	sourceImmutable      bool
+	sourceImagePresented bool
 
 	// Viewport state. zoom 0 means "fit the whole image to the cell
 	// rect"; zoom N (N >= 1) crops the source to a 1/2^N square that
@@ -130,12 +130,10 @@ func NewWithConfig(cfg Config) Model {
 	}
 
 	var lg, rg uint64
-	var closed bool
 	m := Model{
 		cfg:       cfg,
 		keys:      DefaultKeyMap(),
 		style:     styles,
-		picClosed: &closed,
 		cols:      cfg.Cols,
 		rows:      cfg.Rows,
 		mode:      cfg.DefaultMode,
@@ -156,25 +154,37 @@ func (m *Model) newPicture() *picture.Picture {
 	opts.Render = renderCfg
 	p := picture.New(opts)
 	_ = p.SetSize(m.cols, m.rows)
-	if m.picClosed != nil {
-		*m.picClosed = false
-	}
 	return p
 }
 
 func (m *Model) ensurePicture() {
-	if m.pic == nil || (m.picClosed != nil && *m.picClosed) {
+	if m.pic.Closed() {
 		var mode picture.PictureMode
+		var autoMode bool
 		var cw, ch int
+		var cap picture.KittyCapability
 		if m.pic != nil {
 			mode = m.pic.Mode()
+			autoMode = m.pic.AutoMode()
 			cw, ch = m.pic.CellPixelSize()
+			cap = m.pic.KittySupported()
 			m.cfg.PictureConfig.Fit = m.pic.Fit()
 			m.cfg.PictureConfig.Anchor = m.pic.Anchor()
+			m.cfg.PictureConfig.KittyResolutionFactor = m.pic.Resolution()
+			m.cfg.PictureConfig.MaxRasterPixels = m.pic.MaxRasterPixels()
+			m.cfg.PictureOptions.AutoMode = autoMode
 		}
 		m.pic = m.newPicture()
+		m.sourceImagePresented = false
+		if cap != picture.KittyCapabilityUnknown {
+			_ = m.pic.SetKittyCapability(cap)
+		}
 		if cw > 0 && ch > 0 {
-			_ = m.pic.SetTerminal(mode == picture.PictureKitty, cw, ch)
+			if autoMode {
+				_ = m.pic.SetCellSize(cw, ch)
+			} else {
+				_ = m.pic.SetTerminal(mode == picture.PictureKitty, cw, ch)
+			}
 		}
 	}
 }
@@ -196,7 +206,12 @@ func (m Model) Mode() Mode { return m.mode }
 // RenderMode returns the underlying picture protocol used by RasterMode.
 func (m Model) RenderMode() RenderMode { return m.pic.Mode() }
 
-// SetRenderMode explicitly sets the underlying picture protocol (Glyph or Kitty).
+// AutoRenderMode reports whether the underlying picture automatically selects
+// RenderKitty or RenderGlyph from its terminal session capability.
+func (m Model) AutoRenderMode() bool { return m.pic.AutoMode() }
+
+// SetRenderMode explicitly sets the underlying picture protocol (RenderGlyph,
+// RenderKitty, or RenderAuto).
 func (m *Model) SetRenderMode(mode RenderMode) tea.Cmd {
 	m.ensurePicture()
 	return m.pic.SetMode(mode)
@@ -206,7 +221,26 @@ func (m *Model) SetRenderMode(mode RenderMode) tea.Cmd {
 // to the underlying picture.Picture without probing.
 func (m *Model) SetTerminal(kitty bool, cellWidth, cellHeight int) tea.Cmd {
 	m.ensurePicture()
+	if kitty {
+		_ = m.pic.SetKittyCapability(picture.KittyCapabilitySupported)
+	} else {
+		_ = m.pic.SetKittyCapability(picture.KittyCapabilityUnsupported)
+	}
 	return m.pic.SetTerminal(kitty, cellWidth, cellHeight)
+}
+
+// SetCellSize updates cell pixel dimensions on the underlying picture.Picture
+// while preserving the current rendering mode and AutoMode setting.
+func (m *Model) SetCellSize(cellWidth, cellHeight int) tea.Cmd {
+	m.ensurePicture()
+	return m.pic.SetCellSize(cellWidth, cellHeight)
+}
+
+// SetKittyCapability updates the terminal session's Kitty capability on the
+// underlying picture.Picture while preserving AutoMode.
+func (m *Model) SetKittyCapability(cap picture.KittyCapability) tea.Cmd {
+	m.ensurePicture()
+	return m.pic.SetKittyCapability(cap)
 }
 
 // SetResolution sets the Kitty raster resolution factor in (0, 1] on the
@@ -266,13 +300,13 @@ func (m Model) Err() error { return m.err }
 func (m Model) Image() image.Image { return m.sourceImage }
 
 // KittySupported reports the terminal's Kitty graphics capability. The
-// probe runs once per session/process; expect KittyCapabilityUnknown for the
+// probe runs once per session; expect KittyCapabilityUnknown for the
 // first few frames until the terminal responds.
 func (m Model) KittySupported() picture.KittyCapability {
-	if m.cfg.PictureOptions.Session != nil {
-		return m.cfg.PictureOptions.Session.Snapshot().Kitty
+	if m.pic != nil {
+		return m.pic.KittySupported()
 	}
-	return picture.KittySupported()
+	return picture.KittyCapabilityUnknown
 }
 
 // HasRenderer reports whether an active Renderer is attached to the
@@ -293,9 +327,6 @@ func (m *Model) Dispose() tea.Cmd {
 	var cmd tea.Cmd
 	if m.pic != nil {
 		cmd = m.pic.Close()
-		if m.picClosed != nil {
-			*m.picClosed = true
-		}
 	}
 	if m.cur != nil {
 		_ = m.cur.Close()
@@ -309,9 +340,6 @@ func (m *Model) Dispose() tea.Cmd {
 func (m *Model) Close() error {
 	if m.pic != nil {
 		_ = m.pic.Close()
-		if m.picClosed != nil {
-			*m.picClosed = true
-		}
 	}
 	if m.cur == nil {
 		return nil
@@ -398,6 +426,7 @@ func (m *Model) SetImage(img image.Image) tea.Cmd {
 	m.prevDoc = nil
 	m.sourceImage = img
 	m.sourceImmutable = false
+	m.sourceImagePresented = false
 	m.err = nil
 	return m.applyViewport()
 }
@@ -421,6 +450,7 @@ func (m *Model) SetImageAndRenderer(img image.Image, r Renderer, doc *Document) 
 	m.prevDoc = nil
 	m.sourceImage = img
 	m.sourceImmutable = false
+	m.sourceImagePresented = false
 	m.err = nil
 	return m.applyViewport()
 }
@@ -444,13 +474,7 @@ func (m *Model) ToggleMode() tea.Cmd {
 // Entering Kitty mode is a no-op until Kitty support is confirmed.
 func (m *Model) ToggleRenderMode() tea.Cmd {
 	m.ensurePicture()
-	if m.pic.Mode() == picture.PictureGlyph {
-		if m.KittySupported() != picture.KittyCapabilitySupported {
-			return nil
-		}
-		return m.pic.SetMode(picture.PictureKitty)
-	}
-	return m.pic.SetMode(picture.PictureGlyph)
+	return m.pic.ToggleMode()
 }
 
 // Reload re-rasterizes the current SVG (no-op when no renderer is attached).
@@ -622,6 +646,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		if m.cur == nil {
 			m.sourceImage = nil
 			m.sourceImmutable = false
+			m.sourceImagePresented = false
 			if c := m.presentImage(nil, true); c != nil {
 				cmds = append(cmds, c)
 			}
@@ -636,6 +661,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.prevDoc = nil
 			m.sourceImage = nil
 			m.sourceImmutable = false
+			m.sourceImagePresented = false
 		}
 
 	case renderedMsg:
@@ -655,6 +681,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			// the load was in flight is still honored.
 			m.sourceImage = msg.img
 			m.sourceImmutable = true
+			m.sourceImagePresented = false
 			if c := m.applyViewport(); c != nil {
 				cmds = append(cmds, c)
 			}
@@ -665,6 +692,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.err = msg.err
 			m.sourceImage = nil
 			m.sourceImmutable = false
+			m.sourceImagePresented = false
+		}
+
+	case picture.KittyCapabilityMsg:
+		if m.pic != nil && m.pic.KittySupported() != msg.Capability {
+			if c := m.pic.SetKittyCapability(msg.Capability); c != nil {
+				cmds = append(cmds, c)
+			}
 		}
 	}
 

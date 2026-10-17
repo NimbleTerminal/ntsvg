@@ -116,35 +116,38 @@ func (m *Model) pan(dx, dy float64) tea.Cmd {
 // sub-rectangle for vector-sharp zoom — except at zoom 0, where the
 // region is the whole document and the full-document bitmap already in
 // hand is reused as-is. With no Renderer (a host bitmap installed via
-// SetImage) it falls back to cropping the pixels it has.
+// SetImage) it falls back to cropping the pixels it has via picture.Picture's
+// native source-pixel Crop rectangle.
 func (m *Model) applyViewport() tea.Cmd {
+	m.ensurePicture()
 	if m.cur != nil {
+		cropCmd := m.pic.ResetCrop()
 		if m.zoom == 0 {
 			if m.sourceImage == nil {
-				return nil
+				return cropCmd
 			}
-			return m.presentImage(m.sourceImage, m.sourceImmutable)
+			return tea.Batch(cropCmd, m.presentImage(m.sourceImage, m.sourceImmutable))
 		}
-		return m.renderRegionCmd()
+		return tea.Batch(cropCmd, m.renderRegionCmd())
 	}
 	if m.sourceImage == nil {
-		return nil
+		return m.pic.ResetCrop()
 	}
-	view := cropToViewport(m.sourceImage, m.zoom, m.panX, m.panY)
-	return m.presentImage(view, false)
+	crop := viewportCropRect(m.sourceImage, m.zoom, m.panX, m.panY)
+	if !m.sourceImagePresented {
+		m.sourceImagePresented = true
+		_ = m.pic.SetCrop(crop)
+		return m.presentImage(m.sourceImage, m.sourceImmutable)
+	}
+	return m.pic.SetCrop(crop)
 }
 
-// cropToViewport returns the sub-image described by (zoom, panX, panY)
-// in normalized source-image coords. At zoom 0 it returns src unchanged.
-//
-// Concrete image types from the image/ package satisfy subImager and
-// return a no-copy view that shares the source's pixel buffer. For
-// other image types the fall-through copies the pixels into a fresh
-// *image.RGBA so the consumer always sees the expected coordinate
-// system.
-func cropToViewport(src image.Image, zoom int, panX, panY float64) image.Image {
+// viewportCropRect returns the source-pixel rectangle described by
+// (zoom, panX, panY) in normalized source-image coords. At zoom 0 it
+// returns an empty rectangle (full source image).
+func viewportCropRect(src image.Image, zoom int, panX, panY float64) image.Rectangle {
 	if src == nil || zoom <= 0 {
-		return src
+		return image.Rectangle{}
 	}
 	if zoom > 30 {
 		zoom = 30
@@ -180,11 +183,20 @@ func cropToViewport(src image.Image, zoom int, panX, panY float64) image.Image {
 	if y0 < b.Min.Y {
 		y0 = b.Min.Y
 	}
-	cropRect := image.Rect(x0, y0, x0+rectW, y0+rectH)
+	return image.Rect(x0, y0, x0+rectW, y0+rectH)
+}
+
+// cropToViewport returns the sub-image described by (zoom, panX, panY)
+// in normalized source-image coords. At zoom 0 it returns src unchanged.
+func cropToViewport(src image.Image, zoom int, panX, panY float64) image.Image {
+	cropRect := viewportCropRect(src, zoom, panX, panY)
+	if cropRect.Empty() {
+		return src
+	}
 	if si, ok := src.(subImager); ok {
 		return si.SubImage(cropRect)
 	}
-	out := image.NewRGBA(image.Rect(0, 0, rectW, rectH))
+	out := image.NewRGBA(image.Rect(0, 0, cropRect.Dx(), cropRect.Dy()))
 	draw.Draw(out, out.Bounds(), src, cropRect.Min, draw.Src)
 	return out
 }

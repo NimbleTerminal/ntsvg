@@ -38,19 +38,17 @@ type model struct {
 	sv               ntsvg.Model
 	scene, pal, step int
 	width, height    int
-	preferKitty      bool
 }
 
 func newModel() model {
 	cfg := ntsvg.Config{}
+	cfg.PictureOptions.AutoMode = true
 	if runtime.GOOS == "js" {
 		cfg.PictureConfig.KittyMedium = picture.KittyMediumSharedMemory
 	}
-	m := model{
-		sv:          ntsvg.NewWithConfig(cfg),
-		preferKitty: true,
+	return model{
+		sv: ntsvg.NewWithConfig(cfg),
 	}
-	return m
 }
 
 func (m model) buildStage() *stage.Stage {
@@ -186,9 +184,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if demohelp.Quit(msg) {
 			return m, tea.Sequence(m.sv.Dispose(), tea.Quit)
 		}
-		if key.Matches(msg, m.sv.KeyMap().ToggleRender) {
-			m.preferKitty = false
-		}
 		switch msg.String() {
 		case "s", "tab":
 			m.scene = (m.scene + 1) % len(sceneNames)
@@ -214,12 +209,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 	m.sv, cmd = m.sv.Update(msg)
-	if m.preferKitty && m.sv.KittySupported() == picture.KittyCapabilitySupported {
-		m.preferKitty = false
-		if m.sv.RenderMode() != ntsvg.RenderKitty {
-			cmd = tea.Batch(cmd, m.sv.ToggleRenderMode())
-		}
-	}
 	return m, cmd
 }
 
