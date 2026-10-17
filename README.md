@@ -36,7 +36,7 @@ func (m model) Init() tea.Cmd { return m.sv.Init() }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     if k, ok := msg.(tea.KeyMsg); ok && (k.String() == "q" || k.String() == "ctrl+c") {
-        return m, tea.Quit
+        return m, tea.Sequence(m.sv.Dispose(), tea.Quit)
     }
     if sz, ok := msg.(tea.WindowSizeMsg); ok {
         return m, m.sv.SetSize(sz.Width, sz.Height)
@@ -82,8 +82,9 @@ transport, passing raw RGBA frames without PNG encoding or base64 image payloads
 It falls back to direct PNG when the browser bridge is unavailable. Native builds
 keep direct PNG transport. Library callers can opt in through
 `Config.PictureConfig.KittyMedium` and select a direct format through
-`Config.PictureConfig.KittyFormat`; call `Model.Close()` when disposing the widget
-to release pending shared-memory frames.
+`Config.PictureConfig.KittyFormat`; call `Model.Dispose()` (returning the terminal
+placement cleanup `tea.Cmd`) or `Model.Close()` when disposing the widget to
+release pending shared-memory frames.
 
 ## Modes
 
