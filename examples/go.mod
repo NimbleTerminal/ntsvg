@@ -7,12 +7,13 @@ require (
 	charm.land/bubbletea/v2 v2.1.0
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/NimbleMarkets/go-booba v0.9.2
+	github.com/zkrebbekx/go-mermaid v0.1.6
 	nimbleterminal.dev/ntpicture v0.1.0
 	nimbleterminal.dev/ntsvg v0.0.0
 )
 
 require (
-	github.com/NimbleMarkets/oksvg v0.1.1 // indirect
+	github.com/NimbleMarkets/oksvg v0.1.2-0.20261018135345-1f47a2319587 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20261008173134-6b8d4baf91b4 // indirect
 	github.com/charmbracelet/x/ansi v0.11.9 // indirect

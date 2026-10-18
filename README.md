@@ -65,6 +65,7 @@ Building requires Go 1.26.8 or newer. See [`examples/README.md`](./examples/READ
 - **`task run-gallery`** ([`examples/gallery`](./examples/gallery/main.go)) — browse five embedded SVG samples ([`examples/gallery/samples/`](./examples/gallery/samples)) across Raster and Info modes, fit policies, and zoom levels.
 - **`task run-stage`** ([`examples/stage`](./examples/stage/main.go)) — interactive immediate-mode vector stage (`stage.Stage`) with geometric primitives, cubic Bezier waves, procedural rosettes, and telemetry HUD cards.
 - **`task run-charts`** ([`examples/charts`](./examples/charts/main.go)) — live grouped bar and multi-series line chart builder using `stage.Chart`.
+- **`task run-mermaid`** ([`examples/mermaid`](./examples/mermaid/main.go)) — generate Mermaid diagrams as SVG with upstream go-mermaid, cycle diagram types and themes, and zoom/pan through ntsvg.
 - **`task run-svgview`** ([`examples/svgview`](./examples/svgview/main.go)) — single-pane CLI viewer (`./bin/ntsvg-svgview [path.svg]`) with a status bar, help bubble, and `c` / `e` keys to generate and export a chart at runtime.
 
 All demos automatically select Kitty graphics when terminal support is detected, and otherwise use half-block glyph rendering (`g` toggles manually).

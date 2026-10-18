@@ -6,7 +6,7 @@ import vm from 'node:vm';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const demo = process.argv[2];
-assert.ok(['gallery', 'stage', 'charts', 'svgview'].includes(demo));
+assert.ok(['gallery', 'stage', 'charts', 'svgview', 'mermaid'].includes(demo));
 
 vm.runInThisContext(await readFile('web/wasm_exec.js', 'utf8'));
 const go = new Go();
@@ -75,6 +75,12 @@ try {
     await send('t', 'Charts: type=line dataset=revenue variant=0 mode=raster');
     await send('d', 'Charts: type=line dataset=latency variant=0 mode=raster');
     await send('r', 'Charts: type=bar dataset=revenue variant=0 mode=raster');
+  } else if (demo === 'mermaid') {
+    await send('n', 'Mermaid: diagram=Sequence (2/5) theme=default mode=raster fit=contain zoom=1x');
+    await send('c', 'Mermaid: diagram=Sequence (2/5) theme=dark mode=raster fit=contain zoom=1x');
+    await send('+', 'Mermaid: diagram=Sequence (2/5) theme=dark mode=raster fit=contain zoom=2x');
+    await send('m', 'Mermaid: diagram=Sequence (2/5) theme=dark mode=info fit=contain zoom=2x');
+    await send('r', 'Mermaid: diagram=Pipeline (1/5) theme=default mode=raster fit=contain zoom=1x');
   } else if (demo === 'svgview') {
     await send('c', 'Viewer: name=Quarterly Revenue mode=raster chart=true');
     await send('m', 'Viewer: name=Quarterly Revenue mode=info chart=true');

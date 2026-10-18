@@ -1,12 +1,14 @@
 import { BoobaTerminal, installActionBar, installRendererHud, parseRendererFromURL } from './booba/booba.js';
 
 const demos = {
+  mermaid: 'Mermaid diagrams',
   gallery: 'Sample gallery',
   stage: 'Vector stage',
   charts: 'Stage charts',
   svgview: 'SVG viewer',
 };
 const help = {
+  mermaid: 'n/p: next/prev diagram · c: theme · m: raster/info · f: fit · +/-: zoom · arrows: pan · g: glyph/kitty · r: reset · q: quit.',
   gallery: 'n/p: next/prev sample · m: raster/info · f: fit mode · +/-: zoom · arrows: pan · g: glyph/kitty · r: reset · q: quit.',
   stage: 's: next scene · c: palette · ↑/↓: detail · m: raster/info · g: glyph/kitty · r: reset · q: quit.',
   charts: 't: bar/line · d: next dataset · v: vary values · m: raster/info · f: fit mode · g: glyph/kitty · r: reset · q: quit.',
