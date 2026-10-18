@@ -47,5 +47,5 @@ The dependency is confined to the examples module.
 
 The browser gallery includes the same demo at `?demo=mermaid`, with no Mermaid
 JavaScript runtime or external rasterizer. SVG fidelity follows ntsvg's existing
-oksvg support. The pinned `nm` branch revision supports Mermaid's percentage-sized
+oksvg support. The pinned oksvg v0.1.2 release supports Mermaid's percentage-sized
 backgrounds and marker-based arrowheads, so the SVG passes through unchanged.

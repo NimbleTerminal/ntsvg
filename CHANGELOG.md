@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## v0.5.1 (2026-10-18)
+
+ * Upgrade `github.com/NimbleMarkets/oksvg` to v0.1.2, adding SVG marker rendering (including Mermaid arrowheads) and percentage-sized backgrounds.
+ * Add a native and browser Mermaid diagram gallery (`task run-mermaid`) with five diagram types, five themes, zoom, pan, and Raster/Info modes.
+ * Generate SVG with upstream `go-mermaid` v0.1.6 and pass it directly to ntsvg for rasterization, including zoomed viewports; keep the dependency in the examples module.
+ * Include the Mermaid demo in the browser gallery, CI, and Pages builds, with rendering coverage across all diagrams/themes and browser interaction smoke tests.
+
 ## v0.5.0 (2026-10-17)
 
  * **Breaking:** rename module from `github.com/NimbleMarkets/ntcharts-svg` to `nimbleterminal.dev/ntsvg` (`package ntsvg` at the module root).
