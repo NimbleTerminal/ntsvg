@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## v0.5.2 (2026-10-19)
+
+ * Upgrade `nimbleterminal.dev/ntpicture` to v0.1.1.
+ * Upgrade the browser demo's `go-booba` to v0.10.3 (examples module only).
+
 ## v0.5.1 (2026-10-18)
 
  * Upgrade `github.com/NimbleMarkets/oksvg` to v0.1.2, adding SVG marker rendering (including Mermaid arrowheads) and percentage-sized backgrounds.

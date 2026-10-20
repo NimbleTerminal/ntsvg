@@ -12,7 +12,7 @@ require (
 	github.com/NimbleMarkets/oksvg v0.1.2
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
-	nimbleterminal.dev/ntpicture v0.1.0
+	nimbleterminal.dev/ntpicture v0.1.1
 )
 
 require (
