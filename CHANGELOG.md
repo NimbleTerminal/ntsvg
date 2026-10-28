@@ -1,8 +1,11 @@
 # CHANGELOG
 
-## Unreleased
+## v0.5.4 (2026-10-28)
 
  * Add `DefaultRendererFactoryWithImages` for host-supplied decoded SVG image resources, without implicit network, file, or data URL loading.
+ * Pin `github.com/NimbleMarkets/oksvg` to `v0.1.4-0.20261028204714-7ff6358034d2`.
+ * Upgrade `nimbleterminal.dev/ntpicture` to v0.1.3.
+ * Upgrade the browser demo's `go-booba` and `booba-assets` tool to v0.10.7 (examples module only).
 
 ## v0.5.3 (2026-10-28)
 
