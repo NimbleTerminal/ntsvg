@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Unreleased
+
+ * Add `DefaultRendererFactoryWithImages` for host-supplied decoded SVG image resources, without implicit network, file, or data URL loading.
+
 ## v0.5.3 (2026-10-28)
 
  * Upgrade `github.com/NimbleMarkets/oksvg` to v0.1.3.

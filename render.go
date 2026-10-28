@@ -71,12 +71,19 @@ func DefaultRendererFactory() RendererFactory {
 // the renderer (the only layer that knows the document's aspect ratio);
 // MaxFileBytes is enforced upstream of the factory by the loader.
 func DefaultRendererFactoryWithLimits(limits Limits) RendererFactory {
+	return DefaultRendererFactoryWithImages(limits, nil)
+}
+
+// DefaultRendererFactoryWithImages adds a host-supplied allowlist of decoded
+// raster images, keyed by SVG image href. No resources are fetched or decoded.
+// Images must remain immutable for the lifetime of the returned renderers.
+func DefaultRendererFactoryWithImages(limits Limits, images map[string]image.Image) RendererFactory {
 	limits.applyDefaults()
 	return func(name string, data []byte) (Renderer, error) {
 		if len(data) == 0 {
 			return nil, fmt.Errorf("parse %q: empty svg data", name)
 		}
-		icon, err := parseIcon(data)
+		icon, err := parseIconWithImages(data, images)
 		if icon == nil {
 			return nil, fmt.Errorf("parse %q: %w", name, err)
 		}
@@ -104,7 +111,11 @@ func DefaultRendererFactoryWithLimits(limits Limits) RendererFactory {
 // parser is robust for well-formed input but a hostile or truncated
 // document can trip an unguarded slice index deep in the path parser;
 // turning that into an error keeps the load goroutine alive.
-func parseIcon(data []byte) (icon *oksvg.SvgIcon, err error) {
+func parseIcon(data []byte) (*oksvg.SvgIcon, error) {
+	return parseIconWithImages(data, nil)
+}
+
+func parseIconWithImages(data []byte, images map[string]image.Image) (icon *oksvg.SvgIcon, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			icon, err = nil, fmt.Errorf("svg parser panic: %v", r)
@@ -113,7 +124,7 @@ func parseIcon(data []byte) (icon *oksvg.SvgIcon, err error) {
 	// IgnoreErrorMode: skip elements oksvg doesn't understand rather
 	// than failing the whole parse — a viewer should render what it
 	// can of a partially-supported document.
-	return oksvg.ReadIconStream(bytes.NewReader(data), oksvg.IgnoreErrorMode)
+	return oksvg.ReadIconStreamWithImages(bytes.NewReader(data), images, oksvg.IgnoreErrorMode)
 }
 
 // oksvgRenderer rasterizes one parsed SVG icon. The icon is immutable
