@@ -9,10 +9,10 @@ require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.1.1
 	charm.land/lipgloss/v2 v2.0.6
-	github.com/NimbleMarkets/oksvg v0.1.3
+	github.com/NimbleMarkets/oksvg v0.1.4-0.20261028204714-7ff6358034d2
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
-	nimbleterminal.dev/ntpicture v0.1.2
+	nimbleterminal.dev/ntpicture v0.1.3
 )
 
 require (

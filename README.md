@@ -78,7 +78,7 @@ task serve-wasm-site   # builds web/demos/*.wasm, stages booba assets, serves ht
 
 `task build-wasm-site` alone produces the deployable `web/` directory; the `.github/workflows/pages.yml` workflow publishes it to GitHub Pages on every push to `main`.
 
-The browser demo uses booba v0.10.3 and requests `ntpicture`'s Kitty shared-memory
+The browser demo uses booba v0.10.7 and requests `ntpicture`'s Kitty shared-memory
 transport, passing raw RGBA frames without PNG encoding or base64 image payloads.
 It falls back to direct PNG when the browser bridge is unavailable. Native builds
 keep direct PNG transport. Library callers can opt in through
