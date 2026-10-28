@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## v0.5.3 (2026-10-28)
+
+ * Upgrade `github.com/NimbleMarkets/oksvg` to v0.1.3.
+ * Pin `github.com/srwiley/rasterx` to the `github.com/neomantra/rasterx` v0.1.0 fork via `replace` in the library and examples modules.
+ * Upgrade `nimbleterminal.dev/ntpicture` to v0.1.2 and `charm.land/bubbletea/v2` to v2.1.1.
+ * Upgrade the browser demo's `go-booba` and `booba-assets` tool to v0.10.5 (examples module only).
+ * Update transitive dependencies, including `ultraviolet` and `golang.org/x/net`.
+
 ## v0.5.2 (2026-10-19)
 
  * Upgrade `nimbleterminal.dev/ntpicture` to v0.1.1.
