@@ -18,6 +18,15 @@ tasks:
 
 ###############################################################################
 
+  ci:
+    desc: 'Run native and WASM tests, vet, builds, and browser demo smoke tests'
+    cmds:
+      - task: vet
+      - task: test
+      - task: build
+      - task: test-wasm
+      - task: build-wasm-site
+
   go-tidy:
     desc: 'Go tidy all the things'
     run: once
