@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v0.5.5 (2026-10-30)
+
+ * Upgrade `github.com/NimbleMarkets/oksvg` to v0.1.5, `nimbleterminal.dev/ntpicture` to v0.1.4, and `github.com/xo/terminfo` to v1.3.0.
+ * Update the browser Bubble Tea fork to the latest `nm-wasm` commit (`536722b0bdb6`).
+ * Add `task ci` to run native and WASM tests, vet, builds, and browser demo smoke tests.
+
 ## v0.5.4 (2026-10-28)
 
  * Add `DefaultRendererFactoryWithImages` for host-supplied decoded SVG image resources, without implicit network, file, or data URL loading.
