@@ -34,9 +34,12 @@ require (
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
+	nimbleterminal.dev/ntmediabox v0.0.0 // indirect
 )
 
 replace nimbleterminal.dev/ntsvg => ..
+
+replace nimbleterminal.dev/ntmediabox => ../../ntmediabox
 
 tool github.com/NimbleMarkets/go-booba/cmd/booba-assets
 
