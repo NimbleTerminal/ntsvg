@@ -70,8 +70,8 @@ func TestWorkerRendererSandboxedSubprocess(t *testing.T) {
 		t.Skipf("sandbox unavailable: %s", sup.Detail)
 	}
 	if runtime.GOOS == "linux" {
-		if _, err := ntmediabox.ResolveSibling("ntmediabox-stage"); err != nil {
-			t.Skip("ntmediabox-stage not beside test binary on Linux")
+		if _, err := ntmediabox.ResolveSibling(ntmediabox.DefaultStageBinary); err != nil {
+			t.Skip("ntconfine-stage not beside test binary on Linux")
 		}
 	}
 	exe, err := os.Executable()
