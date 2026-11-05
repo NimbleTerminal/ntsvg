@@ -70,7 +70,7 @@ Building requires Go 1.26.8 or newer. See [`examples/README.md`](./examples/READ
 
 All demos automatically select Kitty graphics when terminal support is detected, and otherwise use half-block glyph rendering (`g` toggles manually).
 
-The same examples compile to WebAssembly and run in the browser sample gallery via [`booba`](https://github.com/NimbleMarkets/go-booba), publishing their key bindings as interactive action buttons above the terminal:
+The same examples compile to WebAssembly and run in the browser sample gallery via [`booba`](https://github.com/nimbleterminal/booba), publishing their key bindings as interactive action buttons above the terminal:
 
 ```sh
 task serve-wasm-site   # builds web/demos/*.wasm, stages booba assets, serves http://localhost:8000/web/
@@ -78,7 +78,7 @@ task serve-wasm-site   # builds web/demos/*.wasm, stages booba assets, serves ht
 
 `task build-wasm-site` alone produces the deployable `web/` directory; the `.github/workflows/pages.yml` workflow publishes it to GitHub Pages on every push to `main`.
 
-The browser demo uses booba v0.10.7 and requests `ntpicture`'s Kitty shared-memory
+The browser demo uses booba v0.12.1 and requests `ntpicture`'s Kitty shared-memory
 transport, passing raw RGBA frames without PNG encoding or base64 image payloads.
 It falls back to direct PNG when the browser bridge is unavailable. Native builds
 keep direct PNG transport. Library callers can opt in through
@@ -97,6 +97,73 @@ release pending shared-memory frames.
 `sv.ToggleMode()` returns a `tea.Cmd` that swaps modes and re-renders. RasterMode internally uses `ntpicture.PictureGlyph` (universal half-blocks) or `ntpicture.PictureKitty` (high-resolution); switch between them with `sv.ToggleRenderMode()`.
 
 ## Renderer
+
+### Confined rendering with ntmediabox
+
+The default renderer runs in the host process. To parse and rasterize SVGs in
+a separate process, build the [worker example](./examples/svgworker/main.go)
+with `task build-examples` and configure the widget with its absolute path:
+
+```go
+sv := ntsvg.NewWithConfig(ntsvg.Config{
+    InitialPath: "drawing.svg",
+    RendererFactory: ntsvg.WorkerRendererFactory(ntsvg.WorkerConfig{
+        WorkerPath: "/absolute/path/to/bin/ntsvg-worker",
+        Limits:     ntsvg.Limits{MaxFileBytes: 8 << 20, MaxRenderPixels: 4 << 20},
+    }),
+})
+```
+
+[`ntmediabox`](https://github.com/nimbleterminal/ntmediabox) launches the worker
+using `ntconfine` and exchanges bounded SVG requests and RGBA replies over its
+render protocol. Each loaded SVG owns a worker; zoom and pan reuse it. Call
+`Model.Dispose()` (and execute its returned command) or `Model.Close()` to
+release it. Operations time out after 15 seconds by default; set
+`WorkerConfig.Timeout` to change this.
+
+On macOS the launcher uses `sandbox-exec`. Linux requires Landlock/seccomp
+support and an `ntconfine-stage` executable beside the host executable, or an
+explicit `WorkerConfig.StagePath`. Build that executable from
+[`ntconfine/cmd/ntconfine-stage`](https://github.com/nimbleterminal/ntconfine/tree/main/cmd/ntconfine-stage).
+Worker startup fails if confinement is unavailable unless the caller explicitly
+sets `AllowUnsandboxed: true`. Browser WASM demos use the in-process renderer.
+
+The host reads SVG bytes and sends them to the worker, which extracts the
+InfoMode metadata as well as parsing and rasterizing the SVG. The host validates
+the returned metadata without parsing SVG markup; missing or invalid worker
+metadata fails the load without falling back to host XML processing. Ship a
+worker built from the same ntsvg version as the host. The worker needs no access
+to the source file, and embedded image resources are not loaded implicitly.
+For an application that doubles as its own worker,
+set `WorkerArgs` to a dedicated mode and dispatch that mode to
+`ntsvg.ServeWorker(ntmediabox.WorkerConn(), limits)` before starting the UI.
+The launcher and protocol packages have separate licenses; see
+[ntmediabox's license documentation](https://github.com/nimbleterminal/ntmediabox#license).
+
+### Custom renderers
+
+Renderers can implement the optional `MetadataProvider` interface:
+
+```go
+type MetadataProvider interface {
+    Metadata() Metadata
+}
+```
+
+`Metadata` contains `ViewBox` (`[minX, minY, width, height]`), declared `Width`
+and `Height` strings (preserving units), `Title`, `Description`, `ElementCounts`,
+`TotalElements`, and `CountCapped`. Return an independent copy of the histogram.
+Strings remain untrusted content and are sanitized by InfoMode before display.
+Both built-in renderers provide metadata; custom renderers without this
+capability retain the host XML scan, including the InfoMode fallback when
+renderer creation fails.
+
+The SVG worker protocol carries a version 1 JSON envelope (`version`, `metadata`)
+in the `svg-open` response's `Meta` field. Metadata is limited to 1 MiB, 4096
+histogram entries, 256 bytes per element name, 4096 bytes per declared size,
+and 4096 runes per title or description. The host rejects unsupported versions,
+non-finite or nonpositive dimensions, negative counts, and inconsistent totals.
+The ntmediabox transport API is unchanged.
 
 ```go
 type Renderer interface {

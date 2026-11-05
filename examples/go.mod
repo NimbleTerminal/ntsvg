@@ -6,9 +6,10 @@ require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.1.1
 	charm.land/lipgloss/v2 v2.0.6
-	github.com/NimbleMarkets/go-booba v0.10.7
 	github.com/zkrebbekx/go-mermaid v0.1.6
-	nimbleterminal.dev/ntpicture v0.1.4
+	nimbleterminal.dev/booba v0.12.1
+	nimbleterminal.dev/ntmediabox v0.1.0
+	nimbleterminal.dev/ntpicture v0.1.5
 	nimbleterminal.dev/ntsvg v0.5.4
 )
 
@@ -34,16 +35,13 @@ require (
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
-	nimbleterminal.dev/ntmediabox v0.0.0 // indirect
-	nimbleterminal.dev/ntmediabox/pkg/mediabox v0.0.0 // indirect
+	nimbleterminal.dev/ntconfine v0.1.1 // indirect
+	nimbleterminal.dev/ntconfine/pkg/confine v0.1.0 // indirect
+	nimbleterminal.dev/ntmediabox/pkg/mediabox v0.1.0 // indirect
 )
 
 replace nimbleterminal.dev/ntsvg => ..
 
-replace nimbleterminal.dev/ntmediabox => ../../ntmediabox
-
-replace nimbleterminal.dev/ntmediabox/pkg/mediabox => ../../ntmediabox/pkg/mediabox
-
-tool github.com/NimbleMarkets/go-booba/cmd/booba-assets
+tool nimbleterminal.dev/booba/cmd/booba-assets
 
 replace github.com/srwiley/rasterx => github.com/neomantra/rasterx v0.1.0

@@ -2,10 +2,12 @@ package ntsvg
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
 	"io"
+	"math"
 	"os"
 	"runtime"
 	"slices"
@@ -49,6 +51,7 @@ type workerSVGRenderer struct {
 	client          *ntmediabox.RenderClient
 	closeFn         func() error
 	vbW, vbH        float64
+	metadata        Metadata
 	maxRenderPixels int
 	maxRenderEdge   int
 	timeout         time.Duration
@@ -56,14 +59,24 @@ type workerSVGRenderer struct {
 }
 
 // WorkerRendererFactory returns a RendererFactory that parses and rasterizes
-// each SVG inside a separate OS-confined ntmediabox worker process.
+// each SVG inside a separate OS-confined ntmediabox worker process, including
+// metadata extraction. The returned renderer implements MetadataProvider.
+// Startup or metadata errors fail widget loading without host XML fallback.
 func WorkerRendererFactory(cfg WorkerConfig) RendererFactory {
 	cfg.Limits.applyDefaults()
 	timeout := cfg.Timeout
 	if timeout <= 0 {
 		timeout = DefaultWorkerTimeout
 	}
-	return func(name string, data []byte) (Renderer, error) {
+	return func(name string, data []byte) (renderer Renderer, err error) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				err = fmt.Errorf("SVG worker panic: %v", rec)
+			}
+			if err != nil {
+				err = &confinedLoadError{err}
+			}
+		}()
 		if len(data) == 0 {
 			return nil, fmt.Errorf("parse %q: empty svg data", name)
 		}
@@ -93,6 +106,12 @@ func WorkerRendererFactory(cfg WorkerConfig) RendererFactory {
 			})
 			return cerr
 		}
+		opened := false
+		defer func() {
+			if !opened {
+				_ = killAndClose()
+			}
+		}()
 		client := ntmediabox.NewRenderClientWithKill(conn, func() {
 			_ = killAndClose()
 		})
@@ -108,8 +127,10 @@ func WorkerRendererFactory(cfg WorkerConfig) RendererFactory {
 
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
+		options, _ := json.Marshal(svgOpenOptions{MaxElements: cfg.Limits.MaxElements})
 		resp, err := client.Do(ctx, ntmediabox.RenderRequest{
 			Kind:      "svg-open",
+			Meta:      options,
 			Name:      name,
 			Width:     maxEdge,
 			Height:    maxEdge,
@@ -121,8 +142,17 @@ func WorkerRendererFactory(cfg WorkerConfig) RendererFactory {
 			_ = killAndClose()
 			return nil, err
 		}
+		metadata, err := decodeMetadata(resp.Meta)
+		if err != nil {
+			return nil, err
+		}
+		if resp.Ended || resp.Width <= 0 || resp.Height <= 0 || math.IsNaN(resp.Width) || math.IsNaN(resp.Height) || math.IsInf(resp.Width, 0) || math.IsInf(resp.Height, 0) {
+			return nil, errors.New("invalid SVG worker open response")
+		}
+		opened = true
 		return &workerSVGRenderer{
 			client:          client,
+			metadata:        metadata,
 			closeFn:         killAndClose,
 			vbW:             resp.Width,
 			vbH:             resp.Height,
@@ -172,6 +202,8 @@ func defaultStartSVGWorker(cfg WorkerConfig) (io.ReadWriteCloser, func() error, 
 	}
 	return h.Conn, h.Close, nil
 }
+
+func (r *workerSVGRenderer) Metadata() Metadata { return cloneMetadata(r.metadata) }
 
 func (r *workerSVGRenderer) ViewBox() (w, h float64) { return r.vbW, r.vbH }
 
@@ -242,6 +274,10 @@ func ServeWorkerWithFactory(conn io.ReadWriter, limits Limits, factory RendererF
 	})
 }
 
+type svgOpenOptions struct {
+	MaxElements int `json:"max_elements"`
+}
+
 type svgWorkerHandler struct {
 	limits  Limits
 	factory RendererFactory
@@ -256,6 +292,15 @@ func (h *svgWorkerHandler) Handle(req ntmediabox.RenderRequest) (ntmediabox.Rend
 			h.r = nil
 		}
 		lim := h.limits
+		if len(req.Meta) > 0 {
+			var options svgOpenOptions
+			if len(req.Meta) > 1024 || json.Unmarshal(req.Meta, &options) != nil {
+				return ntmediabox.RenderResponse{Ended: true}, errors.New("invalid SVG open options")
+			}
+			if options.MaxElements > 0 && (lim.MaxElements <= 0 || options.MaxElements < lim.MaxElements) {
+				lim.MaxElements = options.MaxElements
+			}
+		}
 		if req.MaxPixels > 0 && (lim.MaxRenderPixels <= 0 || req.MaxPixels < lim.MaxRenderPixels) {
 			lim.MaxRenderPixels = req.MaxPixels
 		}
@@ -271,13 +316,34 @@ func (h *svgWorkerHandler) Handle(req ntmediabox.RenderRequest) (ntmediabox.Rend
 		}
 		r, err := fn(req.Name, req.Data)
 		if err != nil {
+			if r != nil {
+				_ = r.Close()
+			}
 			return ntmediabox.RenderResponse{Ended: true}, err
 		}
+		if r == nil {
+			return ntmediabox.RenderResponse{Ended: true}, errors.New("nil SVG renderer")
+		}
 		h.r = r
+		var metadata Metadata
+		if provider, ok := r.(MetadataProvider); ok {
+			metadata = provider.Metadata()
+		} else {
+			doc, err := scanMetadata(req.Name, req.Data, lim.MaxElements)
+			if err != nil {
+				return ntmediabox.RenderResponse{Ended: true}, err
+			}
+			metadata = doc.metadata()
+		}
+		meta, err := encodeMetadata(metadata)
+		if err != nil {
+			return ntmediabox.RenderResponse{Ended: true}, err
+		}
 		vbW, vbH := r.ViewBox()
 		return ntmediabox.RenderResponse{
 			Width:  vbW,
 			Height: vbH,
+			Meta:   meta,
 		}, nil
 
 	case "svg-region":

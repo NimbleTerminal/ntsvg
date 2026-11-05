@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## Unreleased
+
+ * Add `Metadata` and optional `MetadataProvider` support to built-in renderers. SVG workers return bounded, versioned metadata in `svg-open`; worker loads no longer parse XML in the host, including on failure. Legacy custom renderers retain host metadata scanning.
+
+ * Migrate browser demos and the asset tool from `github.com/NimbleMarkets/go-booba` to `nimbleterminal.dev/booba` v0.12.1.
+ * Validate and ignore the new `ntwebterm/` browser runtime assets and include them in site cleanup.
+ * Upgrade `ntpicture` to v0.1.5, pin `ntmediabox` v0.1.0 and `ntconfine` v0.1.1, and remove sibling-checkout dependency replacements.
+ * Add a buildable SVG worker example and document `WorkerRendererFactory`, worker lifecycle, and platform confinement requirements.
+
 ## v0.5.5 (2026-10-30)
 
  * Upgrade `github.com/NimbleMarkets/oksvg` to v0.1.5, `nimbleterminal.dev/ntpicture` to v0.1.4, and `github.com/xo/terminfo` to v1.3.0.

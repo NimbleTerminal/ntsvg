@@ -109,6 +109,7 @@ tasks:
       - mkdir -p bin
       - for: [gallery, stage, charts, svgview, mermaid]
         cmd: go -C examples build -o ../bin/ntsvg-{{.ITEM}} ./{{.ITEM}}
+      - go -C examples build -o ../bin/ntsvg-worker ./svgworker
 
   build-ex-svgview:
     desc: 'Build the svgview example'
@@ -162,7 +163,7 @@ tasks:
   clean-wasm-site:
     desc: 'Remove generated WASM demo site artifacts'
     cmds:
-      - rm -rf web/demos web/booba web/ghostty-web
+      - rm -rf web/demos web/booba web/ghostty-web web/ntwebterm
       - rm -f web/wasm_exec.js web/app.wasm web/LICENSE
 
 ###############################################################################

@@ -83,6 +83,10 @@ func DefaultRendererFactoryWithImages(limits Limits, images map[string]image.Ima
 		if len(data) == 0 {
 			return nil, fmt.Errorf("parse %q: empty svg data", name)
 		}
+		doc, scanErr := scanMetadata(name, data, limits.MaxElements)
+		if doc == nil {
+			return nil, fmt.Errorf("parse %q: %w", name, scanErr)
+		}
 		icon, err := parseIconWithImages(data, images)
 		if icon == nil {
 			return nil, fmt.Errorf("parse %q: %w", name, err)
@@ -95,12 +99,13 @@ func DefaultRendererFactoryWithImages(limits Limits, images map[string]image.Ima
 		}
 		r := &oksvgRenderer{
 			icon:      icon,
+			metadata:  doc.metadata(),
 			vbW:       vbW,
 			vbH:       vbH,
 			maxPixels: limits.MaxRenderPixels,
 			maxEdge:   limits.MaxRenderEdge,
 		}
-		if err != nil {
+		if err = errors.Join(scanErr, err); err != nil {
 			return r, fmt.Errorf("parse %q: %w", name, err)
 		}
 		return r, nil
@@ -134,6 +139,7 @@ func parseIconWithImages(data []byte, images map[string]image.Image) (icon *oksv
 type oksvgRenderer struct {
 	mu        sync.Mutex
 	icon      *oksvg.SvgIcon
+	metadata  Metadata
 	vbW, vbH  float64
 	maxPixels int
 	maxEdge   int
@@ -141,6 +147,9 @@ type oksvgRenderer struct {
 
 // ViewBox reports the parsed document's intrinsic dimensions.
 func (r *oksvgRenderer) ViewBox() (w, h float64) { return r.vbW, r.vbH }
+
+// Metadata returns an independent document summary.
+func (r *oksvgRenderer) Metadata() Metadata { return cloneMetadata(r.metadata) }
 
 // Render rasterizes the whole icon into a bitmap fitted to maxW × maxH
 // and clamped by the renderer's pixel / edge budget. It is exactly

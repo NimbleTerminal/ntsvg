@@ -31,6 +31,12 @@ task build-examples
 ./bin/ntsvg-svgview examples/gallery/samples/02-gradients.svg
 ```
 
+`task build-examples` also builds `bin/ntsvg-worker`, a native request/response
+worker for `ntsvg.WorkerRendererFactory`. See the
+[ntmediabox integration guide](../README.md#confined-rendering-with-ntmediabox)
+for host configuration and Linux stage setup. This helper serves the render
+protocol and is launched by the host; it is not an interactive demo.
+
 ## Mermaid SVG demo
 
 Run `task run-mermaid` (or `go -C examples run ./mermaid`). The gallery renders

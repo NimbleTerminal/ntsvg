@@ -12,8 +12,8 @@ require (
 	github.com/NimbleMarkets/oksvg v0.1.5
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
-	nimbleterminal.dev/ntmediabox v0.0.0
-	nimbleterminal.dev/ntpicture v0.1.4
+	nimbleterminal.dev/ntmediabox v0.1.0
+	nimbleterminal.dev/ntpicture v0.1.5
 )
 
 require (
@@ -34,17 +34,9 @@ require (
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
-	nimbleterminal.dev/ntconfine v0.1.0 // indirect
+	nimbleterminal.dev/ntconfine v0.1.1 // indirect
 	nimbleterminal.dev/ntconfine/pkg/confine v0.1.0 // indirect
 	nimbleterminal.dev/ntmediabox/pkg/mediabox v0.1.0 // indirect
 )
 
 replace github.com/srwiley/rasterx => github.com/neomantra/rasterx v0.1.0
-
-replace nimbleterminal.dev/ntmediabox => ../ntmediabox
-
-replace nimbleterminal.dev/ntmediabox/pkg/mediabox => ../ntmediabox/pkg/mediabox
-
-replace nimbleterminal.dev/ntconfine => ../ntconfine
-
-replace nimbleterminal.dev/ntconfine/pkg/confine => ../ntconfine/pkg/confine

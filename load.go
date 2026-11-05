@@ -1,11 +1,8 @@
 // load.go: SVG loading, lightweight metadata extraction, and the
 // async messages the Model consumes.
 //
-// Loading is split in two: a streaming XML scan collects the document
-// summary shown in InfoMode (view box, element histogram, titles), and
-// the configured RendererFactory parses the bytes for RasterMode. The
-// two are independent — a document whose rasterizer init fails still
-// shows its InfoMode summary.
+// Loading opens the configured renderer first and uses its MetadataProvider
+// capability when available. Legacy renderers retain the host XML scan.
 
 package ntsvg
 
@@ -36,7 +33,7 @@ const maxCapturedMeta = 16
 
 // Document is the InfoMode summary of a parsed SVG: enough structure to
 // describe the file without holding the rasterized pixels. Produced by
-// scanMetadata and exposed through Model accessor methods.
+// a MetadataProvider or scanMetadata and exposed through Model accessor methods.
 type Document struct {
 	name string
 
@@ -171,12 +168,17 @@ func loadFromBytesCmd(name string, data []byte, gen uint64, factory RendererFact
 	return func() tea.Msg { return runLoadFromBytes(name, data, gen, factory, limits) }
 }
 
-// runLoadFromBytes is the shared body of both loaders. It scans the SVG
-// metadata and asks the factory for a Renderer. A panic anywhere in the
+// runLoadFromBytes is the shared body of both loaders. It opens a renderer
+// and uses renderer metadata when available. A panic anywhere in the
 // path is recovered into an svgErrMsg so the load goroutine never
 // crashes the program.
 func runLoadFromBytes(name string, data []byte, gen uint64, factory RendererFactory, limits Limits) (msg tea.Msg) {
+	var renderer Renderer
+	loaded := false
 	defer func() {
+		if !loaded && renderer != nil {
+			_ = renderer.Close()
+		}
 		if r := recover(); r != nil {
 			msg = svgErrMsg{err: fmt.Errorf("panic loading %q: %v", name, r), gen: gen}
 		}
@@ -193,23 +195,30 @@ func runLoadFromBytes(name string, data []byte, gen uint64, factory RendererFact
 		return svgErrMsg{err: errors.New("empty svg data"), gen: gen}
 	}
 
-	doc, scanErr := scanMetadata(name, data, limits.MaxElements)
-	if doc == nil {
-		return svgErrMsg{err: fmt.Errorf("parse %q: %w", name, scanErr), gen: gen}
-	}
-
-	// Renderer-open failure is non-fatal: InfoMode renders fine from
-	// doc alone; only RasterMode degrades. The error rides through
-	// svgLoadedMsg.rendererErr for hosts to surface.
-	var renderer Renderer
 	var rendererErr error
 	if factory != nil {
-		var fErr error
-		renderer, fErr = factory(name, data)
-		rendererErr = errors.Join(scanErr, fErr)
-	} else {
-		rendererErr = scanErr
+		renderer, rendererErr = factory(name, data)
 	}
+	var confinedErr *confinedLoadError
+	if errors.As(rendererErr, &confinedErr) {
+		return svgErrMsg{err: rendererErr, gen: gen}
+	}
+	var doc *Document
+	if provider, ok := renderer.(MetadataProvider); ok {
+		metadata := provider.Metadata()
+		if err := validateMetadata(metadata); err != nil {
+			return svgErrMsg{err: fmt.Errorf("metadata %q: %w", name, err), gen: gen}
+		}
+		doc = documentFromMetadata(name, metadata)
+	} else {
+		var scanErr error
+		doc, scanErr = scanMetadata(name, data, limits.MaxElements)
+		if doc == nil {
+			return svgErrMsg{err: fmt.Errorf("parse %q: %w", name, scanErr), gen: gen}
+		}
+		rendererErr = errors.Join(scanErr, rendererErr)
+	}
+	loaded = true
 	return svgLoadedMsg{
 		name:        name,
 		doc:         doc,

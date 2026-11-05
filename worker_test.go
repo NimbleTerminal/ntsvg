@@ -98,3 +98,84 @@ func TestWorkerRendererSandboxedSubprocess(t *testing.T) {
 		t.Fatalf("unexpected sandboxed render bounds: %v", img.Bounds())
 	}
 }
+
+func TestWorkerMetadataRoundTrip(t *testing.T) {
+	factory := WorkerRendererFactory(WorkerConfig{
+		Limits: Limits{MaxElements: 3},
+		Start: func(cfg WorkerConfig) (io.ReadWriteCloser, func() error, error) {
+			a, b := net.Pipe()
+			go func() { defer b.Close(); _ = ServeWorker(b, Limits{}) }()
+			return a, func() error { return a.Close() }, nil
+		},
+	})
+	msg := runLoadFromBytes("meta.svg", []byte(`<svg viewBox="2 3 20 10" width="100%" height="24px"><title>Worker</title><desc>Description</desc><rect/></svg>`), 1, factory, Limits{})
+	loaded, ok := msg.(svgLoadedMsg)
+	if !ok {
+		t.Fatalf("load = %#v", msg)
+	}
+	defer loaded.renderer.Close()
+	d := loaded.doc
+	if d.Title() != "Worker" || d.rawWidth != "100%" || d.rawHeight != "24px" || d.total != 3 || !d.capped || len(d.descs) != 1 || d.descs[0] != "Description" {
+		t.Fatalf("document = %+v", d)
+	}
+	p := loaded.renderer.(MetadataProvider)
+	m := p.Metadata()
+	if m.ViewBox != [4]float64{2, 3, 20, 10} {
+		t.Fatalf("viewBox = %v", m.ViewBox)
+	}
+	m.ElementCounts["svg"] = 100
+	if p.Metadata().ElementCounts["svg"] != 1 {
+		t.Fatal("metadata snapshot aliases worker renderer")
+	}
+}
+
+func TestWorkerMetadataRequiredWithoutHostFallback(t *testing.T) {
+	valid, err := encodeMetadata(testMetadata())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, meta := range map[string][]byte{"valid": valid, "missing": nil, "malformed": []byte(`{"version":1}`), "unknown version": []byte(`{"version":99}`)} {
+		t.Run(name, func(t *testing.T) {
+			closed := false
+			factory := WorkerRendererFactory(WorkerConfig{Start: func(WorkerConfig) (io.ReadWriteCloser, func() error, error) {
+				a, b := net.Pipe()
+				go func() {
+					defer b.Close()
+					_ = ntmediabox.ServeRender(b, ntmediabox.RenderFunc(func(ntmediabox.RenderRequest) (ntmediabox.RenderResponse, error) {
+						return ntmediabox.RenderResponse{Width: 20, Height: 10, Meta: meta}, nil
+					}))
+				}()
+				return a, func() error { closed = true; return a.Close() }, nil
+			}})
+			// A valid source makes fallback observable: invalid worker metadata
+			// must fail the load rather than produce a host-side Info summary.
+			source := []byte(`<svg><title>Host fallback</title></svg>`)
+			if name == "valid" {
+				source = []byte("not XML")
+			}
+			msg := runLoadFromBytes("worker.svg", source, 1, factory, Limits{})
+			if name == "valid" {
+				loaded, ok := msg.(svgLoadedMsg)
+				if !ok || loaded.doc.Title() != "Example" {
+					t.Fatalf("load = %#v", msg)
+				}
+				_ = loaded.renderer.Close()
+			} else if _, ok := msg.(svgErrMsg); !ok {
+				t.Fatalf("load fell back to host: %#v", msg)
+			}
+			if !closed {
+				t.Fatal("worker not closed")
+			}
+		})
+	}
+}
+
+func TestWorkerStartupFailureWithoutHostFallback(t *testing.T) {
+	factory := WorkerRendererFactory(WorkerConfig{Start: func(WorkerConfig) (io.ReadWriteCloser, func() error, error) {
+		return nil, nil, os.ErrPermission
+	}})
+	msg := runLoadFromBytes("valid.svg", []byte(`<svg/>`), 1, factory, Limits{})
+	if _, ok := msg.(svgErrMsg); !ok {
+		t.Fatalf("load fell back to host: %#v", msg)
+	}
+}

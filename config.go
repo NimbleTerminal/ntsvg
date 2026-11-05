@@ -224,6 +224,9 @@ type Config struct {
 	// bound to that document. When nil the constructor uses
 	// DefaultRendererFactory, which rasterizes via oksvg/rasterx —
 	// pure Go, available on every build target.
+	// Renderers implementing MetadataProvider supply the InfoMode summary;
+	// others use a host XML scan. WorkerRendererFactory keeps that scan
+	// inside the worker and fails the load if worker metadata is unavailable.
 	RendererFactory RendererFactory
 
 	// RenderEdge is the target length in pixels of the rasterized
