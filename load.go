@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"image"
 	"io"
+	"math"
 	"os"
 	"sort"
 	"strconv"
@@ -331,6 +332,12 @@ func parseViewBox(s string) (w, h float64, ok bool) {
 	if len(fields) != 4 {
 		return 0, 0, false
 	}
+	for _, field := range fields {
+		v, err := strconv.ParseFloat(field, 64)
+		if err != nil || math.IsNaN(v) || math.IsInf(v, 0) {
+			return 0, 0, false
+		}
+	}
 	w, errW := strconv.ParseFloat(fields[2], 64)
 	h, errH := strconv.ParseFloat(fields[3], 64)
 	if errW != nil || errH != nil || w <= 0 || h <= 0 {
@@ -352,7 +359,7 @@ func parseLength(s string) float64 {
 		i++
 	}
 	v, err := strconv.ParseFloat(s[:i], 64)
-	if err != nil || v <= 0 {
+	if err != nil || v <= 0 || math.IsNaN(v) || math.IsInf(v, 0) {
 		return 0
 	}
 	return v

@@ -105,11 +105,14 @@ a separate process, build the [worker example](./examples/svgworker/main.go)
 with `task build-examples` and configure the widget with its absolute path:
 
 ```go
+limits := ntsvg.Limits{MaxFileBytes: 8 << 20, MaxRenderPixels: 4 << 20}
 sv := ntsvg.NewWithConfig(ntsvg.Config{
     InitialPath: "drawing.svg",
+    Limits:      limits,
+    RenderEdge:  2048,
     RendererFactory: ntsvg.WorkerRendererFactory(ntsvg.WorkerConfig{
         WorkerPath: "/absolute/path/to/bin/ntsvg-worker",
-        Limits:     ntsvg.Limits{MaxFileBytes: 8 << 20, MaxRenderPixels: 4 << 20},
+        Limits:     limits,
     }),
 })
 ```
@@ -119,7 +122,15 @@ using `ntconfine` and exchanges bounded SVG requests and RGBA replies over its
 render protocol. Each loaded SVG owns a worker; zoom and pan reuse it. Call
 `Model.Dispose()` (and execute its returned command) or `Model.Close()` to
 release it. Operations time out after 15 seconds by default; set
-`WorkerConfig.Timeout` to change this.
+`WorkerConfig.Timeout` to change this. Closing the renderer interrupts an
+in-flight request without waiting for that timeout.
+
+`Config.Limits` bounds host reads and widget rendering; `WorkerConfig.Limits`
+bounds worker requests. Set both to the same budget, and use `Config.RenderEdge`
+to choose the desired raster resolution. The worker enforces the stricter of
+its `ServeWorker` limits and the caller's limits, subject to ntmediabox's fixed
+wire maxima. Negative worker limits remove an application cap; they cannot
+remove the wire maxima or relax limits set by the worker executable.
 
 On macOS the launcher uses `sandbox-exec`. Linux requires Landlock/seccomp
 support and an `ntconfine-stage` executable beside the host executable, or an
@@ -161,7 +172,12 @@ renderer creation fails.
 The SVG worker protocol carries a version 1 JSON envelope (`version`, `metadata`)
 in the `svg-open` response's `Meta` field. Metadata is limited to 1 MiB, 4096
 histogram entries, 256 bytes per element name, 4096 bytes per declared size,
-and 4096 runes per title or description. The host rejects unsupported versions,
+and 4096 runes per title or description. Extracted document strings are clipped
+to these caps; histogram names are clipped and merged, with excess detail
+combined in an `[other]` bucket so totals remain accurate. Invalid declared
+view boxes fall back to finite declared dimensions or the SVG default.
+An optional bounded `warning` field preserves partial parse diagnostics while
+keeping a usable renderer open. The host rejects unsupported versions,
 non-finite or nonpositive dimensions, negative counts, and inconsistent totals.
 The ntmediabox transport API is unchanged.
 

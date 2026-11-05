@@ -3,6 +3,7 @@
 package ntsvg
 
 import (
+	"encoding/json"
 	"image"
 	"io"
 	"net"
@@ -177,5 +178,20 @@ func TestWorkerStartupFailureWithoutHostFallback(t *testing.T) {
 	msg := runLoadFromBytes("valid.svg", []byte(`<svg/>`), 1, factory, Limits{})
 	if _, ok := msg.(svgErrMsg); !ok {
 		t.Fatalf("load fell back to host: %#v", msg)
+	}
+}
+
+func TestWorkerEnforcesOpenFileLimit(t *testing.T) {
+	options, err := json.Marshal(svgOpenOptions{MaxFileBytes: 8})
+	if err != nil {
+		t.Fatal(err)
+	}
+	limits := Limits{}
+	limits.applyDefaults()
+	h := svgWorkerHandler{limits: limits}
+	defer h.Close()
+	resp, err := h.Handle(ntmediabox.RenderRequest{Kind: "svg-open", Data: []byte(sampleWorkerSVG), Meta: options})
+	if err == nil || !resp.Ended || h.r != nil {
+		t.Fatalf("open = %+v, %v", resp, err)
 	}
 }

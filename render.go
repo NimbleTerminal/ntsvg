@@ -266,5 +266,15 @@ func fitDims(vbW, vbH float64, maxW, maxH, maxEdge, maxPixels int) (int, int) {
 	if ih < 1 {
 		ih = 1
 	}
+	// Rounding and the minimum one-pixel edge must not exceed the budget.
+	if maxPixels > 0 && iw > maxPixels/ih {
+		if iw >= ih {
+			ih = min(ih, maxPixels)
+			iw = max(1, maxPixels/ih)
+		} else {
+			iw = min(iw, maxPixels)
+			ih = max(1, maxPixels/iw)
+		}
+	}
 	return iw, ih
 }

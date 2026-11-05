@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -44,6 +45,7 @@ const (
 type metadataEnvelope struct {
 	Version  int       `json:"version"`
 	Metadata *Metadata `json:"metadata"`
+	Warning  string    `json:"warning,omitempty"`
 }
 
 func cloneMetadata(m Metadata) Metadata {
@@ -71,7 +73,45 @@ func (d *Document) metadata() Metadata {
 			m.ViewBox[0], m.ViewBox[1] = x, y
 		}
 	}
+	return boundedDocumentMetadata(m)
+}
+
+// boundedDocumentMetadata compacts extracted SVG content before it reaches
+// provider validation or the wire. Peer-supplied metadata is never repaired.
+func boundedDocumentMetadata(m Metadata) Metadata {
+	m.Width = truncateUTF8Bytes(m.Width, maxMetadataSizeBytes)
+	m.Height = truncateUTF8Bytes(m.Height, maxMetadataSizeBytes)
+	m.Title = truncateRunes(strings.ToValidUTF8(m.Title, "�"), maxCapturedText)
+	m.Description = truncateRunes(strings.ToValidUTF8(m.Description, "�"), maxCapturedText)
+	counts := make(map[string]int)
+	names := slices.Sorted(maps.Keys(m.ElementCounts))
+	// Reserve room for JSON escaping, text, counts, and an aggregate bucket.
+	remaining := 64 << 10
+	for _, name := range names {
+		short := truncateUTF8Bytes(name, maxMetadataNameBytes)
+		if _, exists := counts[short]; !exists {
+			if len(counts) >= maxMetadataEntries-1 || len(short) > remaining {
+				short = "[other]"
+			} else {
+				remaining -= len(short)
+			}
+		}
+		counts[short] += m.ElementCounts[name]
+	}
+	m.ElementCounts = counts
 	return m
+}
+
+func truncateUTF8Bytes(s string, maxBytes int) string {
+	s = strings.ToValidUTF8(s, "�")
+	if len(s) <= maxBytes {
+		return s
+	}
+	s = s[:maxBytes]
+	for !utf8.ValidString(s) {
+		s = s[:len(s)-1]
+	}
+	return s
 }
 
 func documentFromMetadata(name string, m Metadata) *Document {
@@ -125,10 +165,14 @@ func validateMetadata(m Metadata) error {
 }
 
 func encodeMetadata(m Metadata) ([]byte, error) {
+	return encodeMetadataWithWarning(m, "")
+}
+
+func encodeMetadataWithWarning(m Metadata, warning string) ([]byte, error) {
 	if err := validateMetadata(m); err != nil {
 		return nil, err
 	}
-	data, err := json.Marshal(metadataEnvelope{Version: metadataVersion, Metadata: &m})
+	data, err := json.Marshal(metadataEnvelope{Version: metadataVersion, Metadata: &m, Warning: truncateUTF8Bytes(warning, maxMetadataSizeBytes)})
 	if err == nil && len(data) > maxMetadataBytes {
 		err = errors.New("metadata payload too large")
 	}
@@ -136,20 +180,31 @@ func encodeMetadata(m Metadata) ([]byte, error) {
 }
 
 func decodeMetadata(data []byte) (Metadata, error) {
-	if len(data) == 0 || len(data) > maxMetadataBytes || !utf8.Valid(data) {
-		return Metadata{}, errors.New("missing or oversized SVG metadata")
-	}
-	var envelope metadataEnvelope
-	if err := json.Unmarshal(data, &envelope); err != nil {
-		return Metadata{}, fmt.Errorf("decode SVG metadata: %w", err)
-	}
-	if envelope.Version != metadataVersion || envelope.Metadata == nil {
-		return Metadata{}, errors.New("unsupported or missing SVG metadata envelope")
-	}
-	if err := validateMetadata(*envelope.Metadata); err != nil {
+	envelope, err := decodeMetadataEnvelope(data)
+	if err != nil {
 		return Metadata{}, err
 	}
 	return *envelope.Metadata, nil
+}
+
+func decodeMetadataEnvelope(data []byte) (metadataEnvelope, error) {
+	if len(data) == 0 || len(data) > maxMetadataBytes || !utf8.Valid(data) {
+		return metadataEnvelope{}, errors.New("missing or oversized SVG metadata")
+	}
+	var envelope metadataEnvelope
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return metadataEnvelope{}, fmt.Errorf("decode SVG metadata: %w", err)
+	}
+	if envelope.Version != metadataVersion || envelope.Metadata == nil {
+		return metadataEnvelope{}, errors.New("unsupported or missing SVG metadata envelope")
+	}
+	if err := validateMetadata(*envelope.Metadata); err != nil {
+		return metadataEnvelope{}, err
+	}
+	if len(envelope.Warning) > maxMetadataSizeBytes {
+		return metadataEnvelope{}, errors.New("oversized SVG metadata warning")
+	}
+	return envelope, nil
 }
 
 // confinedLoadError prevents worker failures from falling back to host XML

@@ -41,6 +41,9 @@ type WorkerConfig struct {
 	// Timeout bounds each open or render operation (0 uses DefaultWorkerTimeout).
 	Timeout time.Duration
 	// Limits bounds file size, element count, edge length, and pixel count.
+	// Also set Config.Limits to bound host file reads. Negative values remove
+	// the application cap, but cannot disable ntmediabox wire maxima or the
+	// limits configured by ServeWorker.
 	Limits Limits
 	// Start overrides process startup (used by tests or custom transports).
 	Start func(cfg WorkerConfig) (io.ReadWriteCloser, func() error, error)
@@ -73,7 +76,7 @@ func WorkerRendererFactory(cfg WorkerConfig) RendererFactory {
 			if rec := recover(); rec != nil {
 				err = fmt.Errorf("SVG worker panic: %v", rec)
 			}
-			if err != nil {
+			if err != nil && renderer == nil {
 				err = &confinedLoadError{err}
 			}
 		}()
@@ -127,7 +130,7 @@ func WorkerRendererFactory(cfg WorkerConfig) RendererFactory {
 
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
-		options, _ := json.Marshal(svgOpenOptions{MaxElements: cfg.Limits.MaxElements})
+		options, _ := json.Marshal(svgOpenOptions{MaxElements: cfg.Limits.MaxElements, MaxFileBytes: cfg.Limits.MaxFileBytes})
 		resp, err := client.Do(ctx, ntmediabox.RenderRequest{
 			Kind:      "svg-open",
 			Meta:      options,
@@ -142,24 +145,28 @@ func WorkerRendererFactory(cfg WorkerConfig) RendererFactory {
 			_ = killAndClose()
 			return nil, err
 		}
-		metadata, err := decodeMetadata(resp.Meta)
+		envelope, err := decodeMetadataEnvelope(resp.Meta)
 		if err != nil {
 			return nil, err
 		}
 		if resp.Ended || resp.Width <= 0 || resp.Height <= 0 || math.IsNaN(resp.Width) || math.IsNaN(resp.Height) || math.IsInf(resp.Width, 0) || math.IsInf(resp.Height, 0) {
 			return nil, errors.New("invalid SVG worker open response")
 		}
+		var warning error
+		if envelope.Warning != "" {
+			warning = errors.New(envelope.Warning)
+		}
 		opened = true
 		return &workerSVGRenderer{
 			client:          client,
-			metadata:        metadata,
+			metadata:        *envelope.Metadata,
 			closeFn:         killAndClose,
 			vbW:             resp.Width,
 			vbH:             resp.Height,
 			maxRenderPixels: maxPixels,
 			maxRenderEdge:   maxEdge,
 			timeout:         timeout,
-		}, nil
+		}, warning
 	}
 }
 
@@ -213,10 +220,12 @@ func (r *workerSVGRenderer) Render(maxW, maxH int) (image.Image, error) {
 
 func (r *workerSVGRenderer) RenderRegion(maxW, maxH int, nx, ny, nw, nh float64) (image.Image, error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if r.closed || r.client == nil {
+		r.mu.Unlock()
 		return nil, errors.New("svg renderer closed")
 	}
+	client := r.client
+	r.mu.Unlock()
 	if maxW <= 0 || maxH <= 0 {
 		return nil, fmt.Errorf("invalid target dimensions %d×%d", maxW, maxH)
 	}
@@ -226,7 +235,7 @@ func (r *workerSVGRenderer) RenderRegion(maxW, maxH int, nx, ny, nw, nh float64)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
 	defer cancel()
-	resp, err := r.client.Do(ctx, ntmediabox.RenderRequest{
+	resp, err := client.Do(ctx, ntmediabox.RenderRequest{
 		Kind:      "svg-region",
 		Width:     maxW,
 		Height:    maxH,
@@ -244,19 +253,22 @@ func (r *workerSVGRenderer) RenderRegion(maxW, maxH int, nx, ny, nw, nh float64)
 
 func (r *workerSVGRenderer) Close() error {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if r.closed {
+		r.mu.Unlock()
 		return nil
 	}
 	r.closed = true
-	var err error
-	if r.client != nil {
-		_ = r.client.Close()
+	client, closeFn := r.client, r.closeFn
+	r.mu.Unlock()
+	// RenderClient.Close interrupts the transport without waiting for Do's
+	// serialization mutex, so disposal can cancel a blocked RPC immediately.
+	if client != nil {
+		_ = client.Close()
 	}
-	if r.closeFn != nil {
-		err = r.closeFn()
+	if closeFn != nil {
+		return closeFn()
 	}
-	return err
+	return nil
 }
 
 // ServeWorker runs the confined worker side of an SVG renderer over conn using
@@ -275,13 +287,15 @@ func ServeWorkerWithFactory(conn io.ReadWriter, limits Limits, factory RendererF
 }
 
 type svgOpenOptions struct {
-	MaxElements int `json:"max_elements"`
+	MaxElements  int   `json:"max_elements"`
+	MaxFileBytes int64 `json:"max_file_bytes"`
 }
 
 type svgWorkerHandler struct {
-	limits  Limits
-	factory RendererFactory
-	r       Renderer
+	renderLimits Limits
+	limits       Limits
+	factory      RendererFactory
+	r            Renderer
 }
 
 func (h *svgWorkerHandler) Handle(req ntmediabox.RenderRequest) (ntmediabox.RenderResponse, error) {
@@ -296,6 +310,9 @@ func (h *svgWorkerHandler) Handle(req ntmediabox.RenderRequest) (ntmediabox.Rend
 			var options svgOpenOptions
 			if len(req.Meta) > 1024 || json.Unmarshal(req.Meta, &options) != nil {
 				return ntmediabox.RenderResponse{Ended: true}, errors.New("invalid SVG open options")
+			}
+			if options.MaxFileBytes > 0 && (lim.MaxFileBytes <= 0 || options.MaxFileBytes < lim.MaxFileBytes) {
+				lim.MaxFileBytes = options.MaxFileBytes
 			}
 			if options.MaxElements > 0 && (lim.MaxElements <= 0 || options.MaxElements < lim.MaxElements) {
 				lim.MaxElements = options.MaxElements
@@ -314,28 +331,28 @@ func (h *svgWorkerHandler) Handle(req ntmediabox.RenderRequest) (ntmediabox.Rend
 		if fn == nil {
 			fn = DefaultRendererFactoryWithLimits(lim)
 		}
-		r, err := fn(req.Name, req.Data)
-		if err != nil {
-			if r != nil {
-				_ = r.Close()
-			}
-			return ntmediabox.RenderResponse{Ended: true}, err
-		}
+		r, diagnostic := fn(req.Name, req.Data)
 		if r == nil {
-			return ntmediabox.RenderResponse{Ended: true}, errors.New("nil SVG renderer")
+			return ntmediabox.RenderResponse{Ended: true}, errors.Join(errors.New("no SVG renderer"), diagnostic)
 		}
 		h.r = r
+		h.renderLimits = lim
 		var metadata Metadata
 		if provider, ok := r.(MetadataProvider); ok {
 			metadata = provider.Metadata()
 		} else {
 			doc, err := scanMetadata(req.Name, req.Data, lim.MaxElements)
-			if err != nil {
+			if doc == nil {
 				return ntmediabox.RenderResponse{Ended: true}, err
 			}
+			diagnostic = errors.Join(diagnostic, err)
 			metadata = doc.metadata()
 		}
-		meta, err := encodeMetadata(metadata)
+		warning := ""
+		if diagnostic != nil {
+			warning = diagnostic.Error()
+		}
+		meta, err := encodeMetadataWithWarning(metadata, warning)
 		if err != nil {
 			return ntmediabox.RenderResponse{Ended: true}, err
 		}
@@ -354,9 +371,9 @@ func (h *svgWorkerHandler) Handle(req ntmediabox.RenderRequest) (ntmediabox.Rend
 		if err != nil {
 			return ntmediabox.RenderResponse{}, err
 		}
-		rgba := ntmediabox.ToRGBA(img)
-		if rgba == nil {
-			return ntmediabox.RenderResponse{}, errors.New("empty rendered svg")
+		rgba, err := checkedWorkerImage(img, req, h.renderLimits)
+		if err != nil {
+			return ntmediabox.RenderResponse{}, err
 		}
 		return ntmediabox.RenderResponse{
 			Image: rgba,
@@ -383,11 +400,15 @@ func (h *svgWorkerHandler) Handle(req ntmediabox.RenderRequest) (ntmediabox.Rend
 			fn = DefaultRendererFactoryWithLimits(lim)
 		}
 		r, err := fn(req.Name, req.Data)
-		if err != nil {
-			return ntmediabox.RenderResponse{Ended: true}, err
+		if r == nil {
+			return ntmediabox.RenderResponse{Ended: true}, errors.Join(errors.New("no SVG renderer"), err)
 		}
 		defer r.Close()
 		img, err := r.Render(w, hh)
+		if err != nil {
+			return ntmediabox.RenderResponse{Ended: true}, err
+		}
+		rgba, err := checkedWorkerImage(img, req, lim)
 		if err != nil {
 			return ntmediabox.RenderResponse{Ended: true}, err
 		}
@@ -395,13 +416,42 @@ func (h *svgWorkerHandler) Handle(req ntmediabox.RenderRequest) (ntmediabox.Rend
 		return ntmediabox.RenderResponse{
 			Width:  vbW,
 			Height: vbH,
-			Image:  ntmediabox.ToRGBA(img),
+			Image:  rgba,
 			Ended:  true,
 		}, nil
 
 	default:
 		return ntmediabox.RenderResponse{Ended: true}, fmt.Errorf("unknown svg worker request %q", req.Kind)
 	}
+}
+
+// checkedWorkerImage converts only images within session, request, and wire
+// budgets. Return application errors before the transport can kill the session.
+func checkedWorkerImage(img image.Image, req ntmediabox.RenderRequest, limits Limits) (*image.RGBA, error) {
+	if img == nil {
+		return nil, errors.New("empty rendered svg")
+	}
+	w, h := img.Bounds().Dx(), img.Bounds().Dy()
+	maxW, maxH, maxPixels := ntmediabox.MaxRenderSide, ntmediabox.MaxRenderSide, ntmediabox.MaxRenderPixels
+	if req.Width > 0 {
+		maxW = min(maxW, req.Width)
+	}
+	if req.Height > 0 {
+		maxH = min(maxH, req.Height)
+	}
+	if limits.MaxRenderEdge > 0 {
+		maxW, maxH = min(maxW, limits.MaxRenderEdge), min(maxH, limits.MaxRenderEdge)
+	}
+	if req.MaxPixels > 0 {
+		maxPixels = min(maxPixels, req.MaxPixels)
+	}
+	if limits.MaxRenderPixels > 0 {
+		maxPixels = min(maxPixels, limits.MaxRenderPixels)
+	}
+	if w <= 0 || h <= 0 || w > maxW || h > maxH || w > maxPixels/h {
+		return nil, fmt.Errorf("rendered SVG %dx%d exceeds image budget", w, h)
+	}
+	return ntmediabox.ToRGBA(img), nil
 }
 
 func (h *svgWorkerHandler) Close() error {

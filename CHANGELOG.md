@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+ * Preserve usable worker renderers and partial metadata on parse errors, returning bounded diagnostics without ending the session.
+ * Bound extracted metadata before validation so unusual SVG attributes do not prevent rendering; keep rejecting invalid worker replies.
+ * Enforce raster pixel budgets after rounding and reject oversized worker images with recoverable application errors.
+ * Allow closing a worker renderer to interrupt a blocked render request, and align the documented host/worker limits.
+
  * Add `Metadata` and optional `MetadataProvider` support to built-in renderers. SVG workers return bounded, versioned metadata in `svg-open`; worker loads no longer parse XML in the host, including on failure. Legacy custom renderers retain host metadata scanning.
 
  * Migrate browser demos and the asset tool from `github.com/NimbleMarkets/go-booba` to `nimbleterminal.dev/booba` v0.12.1.

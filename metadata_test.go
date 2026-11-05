@@ -129,3 +129,55 @@ func TestLegacyRendererMetadataFallback(t *testing.T) {
 		}
 	}
 }
+
+func TestBuiltinMetadataDoesNotPreventRendering(t *testing.T) {
+	for name, source := range map[string]string{
+		"nonfinite": `<svg viewBox="0 0 NaN 10" width="20" height="10"><rect width="20" height="10"/></svg>`,
+		"long size": `<svg viewBox="0 0 20 10" width="` + strings.Repeat("x", maxMetadataSizeBytes+1) + `"><rect width="20" height="10"/></svg>`,
+		"long name": `<svg viewBox="0 0 20 10"><` + strings.Repeat("a", maxMetadataNameBytes+1) + `/><rect width="20" height="10"/></svg>`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			msg := runLoadFromBytes(name, []byte(source), 1, DefaultRendererFactory(), Limits{})
+			loaded, ok := msg.(svgLoadedMsg)
+			if !ok || loaded.renderer == nil {
+				t.Fatalf("load = %#v", msg)
+			}
+			defer loaded.renderer.Close()
+			if err := validateMetadata(loaded.renderer.(MetadataProvider).Metadata()); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := loaded.renderer.Render(32, 32); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestFitDimsNeverRoundsOverBudget(t *testing.T) {
+	for _, size := range [][5]int{{16, 9, 8192, 8192, 4 << 20}, {1, 1, 8192, 8192, 10_000_000}, {10000, 1, 10000, 1, 3}, {1, 10000, 1, 10000, 3}} {
+		w, h := fitDims(float64(size[0]), float64(size[1]), size[2], size[3], 0, size[4])
+		if w < 1 || h < 1 || w > size[4]/h {
+			t.Errorf("%v: %dx%d exceeds budget", size, w, h)
+		}
+	}
+}
+
+func TestExtractedMetadataCompactionPreservesTotals(t *testing.T) {
+	doc := &Document{viewW: 20, viewH: 10, counts: make(map[string]int)}
+	for i := range maxMetadataEntries + 10 {
+		// Distinct names, long enough to hit the combined name-byte budget.
+		doc.counts[strconv.Itoa(i)+strings.Repeat("a", maxMetadataNameBytes)] = 1
+		doc.total++
+	}
+	m := doc.metadata()
+	if m.TotalElements != doc.total || m.CountCapped || m.ElementCounts["[other]"] == 0 {
+		t.Fatalf("incorrect compacted metadata: total=%d, capped=%v", m.TotalElements, m.CountCapped)
+	}
+	data, err := encodeMetadata(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := decodeMetadata(data); err != nil {
+		t.Fatal(err)
+	}
+}
