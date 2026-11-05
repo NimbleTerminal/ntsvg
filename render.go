@@ -87,14 +87,18 @@ func DefaultRendererFactoryWithImages(limits Limits, images map[string]image.Ima
 		if doc == nil {
 			return nil, fmt.Errorf("parse %q: %w", name, scanErr)
 		}
-		icon, err := parseIconWithImages(data, images)
+		metadata := doc.metadata()
+		normalized, err := withRootViewBox(data, metadata.ViewBox)
+		if err != nil {
+			return nil, fmt.Errorf("normalize %q: %w", name, err)
+		}
+		icon, err := parseIconWithImages(normalized, images)
 		if icon == nil {
 			return nil, fmt.Errorf("parse %q: %w", name, err)
 		}
 		// Use one resolved viewBox for metadata, fitting, and draw transforms.
 		// oksvg may retain a zero or partially parsed box after an invalid
 		// root attribute; repairing only vbW/vbH leaves SetTarget unscaled.
-		metadata := doc.metadata()
 		icon.ViewBox.X, icon.ViewBox.Y = metadata.ViewBox[0], metadata.ViewBox[1]
 		icon.ViewBox.W, icon.ViewBox.H = metadata.ViewBox[2], metadata.ViewBox[3]
 		vbW, vbH := icon.ViewBox.W, icon.ViewBox.H

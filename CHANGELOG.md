@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Normalize the root viewBox before geometry parsing so percentage-based SVG shapes use the same finite fallback viewport as metadata and rasterization.
+
  * Preserve exponent notation in root width/height attributes, including unit suffixes, when deriving shared metadata and rasterizer geometry.
 
  * Share resolved viewBox geometry between metadata and rasterization, preserving valid dimensions when origins are non-finite and applying declared-size/default fallbacks to the rasterizer transform.

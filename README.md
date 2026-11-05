@@ -177,7 +177,8 @@ to these caps; histogram names are clipped and merged, with excess detail
 combined in an `[other]` bucket so totals remain accurate. Non-finite origin
 coordinates become zero while usable viewBox dimensions are retained. Invalid
 viewBox dimensions fall back to finite declared dimensions or the SVG default;
-metadata and rasterization use the same resolved geometry.
+metadata and rasterization use the same resolved geometry. The renderer supplies
+that viewport before parsing child geometry, so percentage lengths use it too.
 An optional bounded `warning` field preserves partial parse diagnostics while
 keeping a usable renderer open. The host rejects unsupported versions,
 non-finite or nonpositive dimensions, negative counts, and inconsistent totals.
