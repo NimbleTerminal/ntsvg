@@ -19,10 +19,11 @@ tasks:
 ###############################################################################
 
   ci:
-    desc: 'Run native and WASM tests, vet, builds, and browser demo smoke tests'
+    desc: 'Run native and WASM tests, fuzzing, vet, builds, and browser demo smoke tests'
     cmds:
       - task: vet
       - task: test
+      - task: fuzz
       - task: build
       - task: test-wasm
       - task: build-wasm-site
@@ -58,6 +59,16 @@ tasks:
       GOARCH: wasm
     cmds:
       - 'go test -exec="$(go env GOROOT)/lib/wasm/go_js_wasm_exec" ./... ./examples/...'
+
+  fuzz:
+    desc: 'Fuzz metadata, SVG dimensions, raster budgets, and root viewport normalization'
+    vars:
+      FUZZ_TIME: '{{default "10s" .FUZZ_TIME}}'
+      FUZZ_PARALLEL: '{{default "2" .FUZZ_PARALLEL}}'
+      FUZZ_TIMEOUT: '{{default "2m" .FUZZ_TIMEOUT}}'
+    cmds:
+      - for: [FuzzMetadataDecode, FuzzSVGMetadata, FuzzDimensions, FuzzFitDims, FuzzRootViewBox]
+        cmd: go test -run='^$' -fuzz='^{{.ITEM}}$' -fuzztime={{.FUZZ_TIME}} -parallel={{.FUZZ_PARALLEL}} -timeout={{.FUZZ_TIMEOUT}} .
 
   vet:
     desc: 'Run go vet'

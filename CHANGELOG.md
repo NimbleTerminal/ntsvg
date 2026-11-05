@@ -2,6 +2,7 @@
 
 ## v0.6.0 (2026-11-04)
 
+ * Add five fuzz targets for worker metadata, SVG metadata round trips, dimension parsing, raster budgets, and root viewport normalization. Run bounded mutation campaigns in `task ci` and GitHub CI, with configurable durations through `task fuzz`.
  * Add opt-in SVG parsing and rasterization in an OS-confined `ntmediabox` worker through `WorkerRendererFactory`, `WorkerConfig`, `ServeWorker`, and `ServeWorkerWithFactory`.
  * Add `Metadata` and the optional `MetadataProvider` renderer interface. Built-in renderers supply InfoMode summaries; workers return bounded, versioned metadata without host XML parsing or host fallback on worker failure. Existing custom renderers retain host metadata scanning.
  * Add the `ntsvg-worker` example to `task build-examples` and document host/worker limits, platform setup, lifecycle, and the requirement to build host and worker from the same release.

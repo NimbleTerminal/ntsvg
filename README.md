@@ -270,6 +270,25 @@ Set any field to `-1` to disable that cap for trusted input; zero uses the defau
 
 SVG titles, descriptions, element names, and error messages can carry C0/C1 control sequences and Unicode bidi format chars ("Trojan Source"-style attacks). The widget's own status text is already sanitized. For host-displayed strings derived from the SVG — `Model.Title()`, `Model.Name()` for in-memory docs, `RendererErr().Error()` — use `ntsvg.SanitizeForTerminal(s string) string`, which drops anything outside Unicode's printable categories and folds newlines / tabs to single spaces.
 
+## Validation and fuzzing
+
+`task ci` runs native and WASM tests, bounded fuzzing, vet, builds, and browser
+demo smoke tests. Fuzz seed cases also run with ordinary `go test ./...`,
+including under WASM. GitHub CI mutates each target for 10 seconds with two
+workers; `task fuzz` runs the same five targets locally.
+
+```sh
+task fuzz FUZZ_TIME=30s                    # 30 seconds per target
+task fuzz FUZZ_TIME=5m FUZZ_TIMEOUT=7m      # longer local campaign
+```
+
+The targets check worker metadata decoding, SVG metadata extraction and wire
+round trips, dimension fallbacks, raster fitting against pixel/edge budgets,
+and root viewBox normalization. Root normalization must preserve namespaces,
+unrelated attributes, and source bytes outside the opening tag. XML inputs are
+bounded to 64 KiB per iteration; larger wire limits have deterministic tests.
+Go saves failing inputs under `testdata/fuzz/`; retain them as regression cases.
+
 ## Known caveats
 
 - **WASM dependencies.** `wasm.work` selects the Bubble Tea fork with browser support; native builds use the upstream dependency in `go.mod`. The WASM tasks and CI select this workspace automatically; manual builds need `GOWORK="$PWD/wasm.work" GOOS=js GOARCH=wasm go -C examples build -o ../web/demos/gallery.wasm ./gallery`.

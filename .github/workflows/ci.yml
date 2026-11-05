@@ -32,6 +32,12 @@ jobs:
         run: |
           go test ./...
           go -C examples test ./...
+      - name: Fuzz input boundaries
+        timeout-minutes: 12
+        run: |
+          for target in FuzzMetadataDecode FuzzSVGMetadata FuzzDimensions FuzzFitDims FuzzRootViewBox; do
+            go test -run='^$' -fuzz="^${target}$" -fuzztime=10s -parallel=2 -timeout=2m .
+          done
       - name: Build library and examples
         run: |
           go build ./...
