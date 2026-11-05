@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Preserve exponent notation in root width/height attributes, including unit suffixes, when deriving shared metadata and rasterizer geometry.
+
  * Share resolved viewBox geometry between metadata and rasterization, preserving valid dimensions when origins are non-finite and applying declared-size/default fallbacks to the rasterizer transform.
 
  * Preserve usable worker renderers and partial metadata on parse errors, returning bounded diagnostics without ending the session.

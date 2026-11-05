@@ -361,12 +361,15 @@ func parseLength(s string) float64 {
 	if s == "" || strings.HasSuffix(s, "%") {
 		return 0
 	}
-	i := 0
-	for i < len(s) && (s[i] == '+' || s[i] == '-' || s[i] == '.' ||
-		(s[i] >= '0' && s[i] <= '9')) {
-		i++
+	// Strip the unit, then parse the complete number so an exponent is not
+	// mistaken for the beginning of a suffix (for example, 1e2px).
+	for _, unit := range []string{"px", "pt", "pc", "mm", "cm", "in", "em", "ex"} {
+		if strings.HasSuffix(s, unit) {
+			s = strings.TrimSuffix(s, unit)
+			break
+		}
 	}
-	v, err := strconv.ParseFloat(s[:i], 64)
+	v, err := strconv.ParseFloat(s, 64)
 	if err != nil || v <= 0 || math.IsNaN(v) || math.IsInf(v, 0) {
 		return 0
 	}

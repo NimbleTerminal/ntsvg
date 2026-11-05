@@ -18,6 +18,13 @@ var viewBoxFallbackCases = []struct {
 	{"infinite height uses attributes", `viewBox="0 0 100 +Inf" width="100" height="10"`, [4]float64{0, 0, 100, 10}},
 	{"zero width uses attributes", `viewBox="5 2 0 10" width="100" height="10"`, [4]float64{0, 0, 100, 10}},
 	{"invalid dimensions use default", `viewBox="0 0 NaN 10"`, [4]float64{0, 0, 300, 150}},
+	{"exponent dimensions", `width="1e2" height="1e1"`, [4]float64{0, 0, 100, 10}},
+	{"exponent pixel dimensions", `width="1e2px" height="1e1px"`, [4]float64{0, 0, 100, 10}},
+	{"signed exponents", `width="1E+2" height="1e+1"`, [4]float64{0, 0, 100, 10}},
+	{"negative exponent", `width="1e2" height="1e-1"`, [4]float64{0, 0, 100, .1}},
+	{"invalid viewBox exponent dimensions", `viewBox="0 0 NaN 10" width="1e2" height="10"`, [4]float64{0, 0, 100, 10}},
+	{"invalid viewBox exponent pixels", `viewBox="0 0 NaN 10" width="1e2px" height="1e1px"`, [4]float64{0, 0, 100, 10}},
+	{"valid viewBox exponents", `viewBox="0 0 1e2 1e1"`, [4]float64{0, 0, 100, 10}},
 	{"valid offset", `viewBox="5 2 100 10"`, [4]float64{5, 2, 100, 10}},
 }
 
@@ -84,4 +91,22 @@ func checkViewBoxFallbacks(t *testing.T, factory RendererFactory) {
 
 func TestDefaultRendererViewBoxFallbacks(t *testing.T) {
 	checkViewBoxFallbacks(t, DefaultRendererFactory())
+}
+
+func TestParseLengthNumbersAndUnits(t *testing.T) {
+	for _, tc := range []struct {
+		input string
+		want  float64
+	}{
+		{"1e2", 100}, {"1e2px", 100}, {"1E+2pt", 100}, {"1e-1", .1},
+		{".5e2", 50}, {"+1.e1", 10}, {"2em", 2}, {"2ex", 2},
+		{" 100px ", 100}, {"1e2%", 0}, {"1e", 0}, {"1e+px", 0},
+		{"1e999", 0}, {"NaN", 0}, {"Inf", 0}, {"-1e2", 0}, {"", 0},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			if got := parseLength(tc.input); got != tc.want {
+				t.Fatalf("parseLength(%q) = %g, want %g", tc.input, got, tc.want)
+			}
+		})
+	}
 }
