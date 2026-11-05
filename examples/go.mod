@@ -10,7 +10,7 @@ require (
 	nimbleterminal.dev/booba v0.12.1
 	nimbleterminal.dev/ntmediabox v0.1.0
 	nimbleterminal.dev/ntpicture v0.1.5
-	nimbleterminal.dev/ntsvg v0.5.4
+	nimbleterminal.dev/ntsvg v0.6.0
 )
 
 require (

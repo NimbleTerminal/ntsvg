@@ -1,24 +1,15 @@
 # CHANGELOG
 
-## Unreleased
+## v0.6.0 (2026-11-04)
 
- * Normalize the root viewBox before geometry parsing so percentage-based SVG shapes use the same finite fallback viewport as metadata and rasterization.
-
- * Preserve exponent notation in root width/height attributes, including unit suffixes, when deriving shared metadata and rasterizer geometry.
-
- * Share resolved viewBox geometry between metadata and rasterization, preserving valid dimensions when origins are non-finite and applying declared-size/default fallbacks to the rasterizer transform.
-
- * Preserve usable worker renderers and partial metadata on parse errors, returning bounded diagnostics without ending the session.
- * Bound extracted metadata before validation so unusual SVG attributes do not prevent rendering; keep rejecting invalid worker replies.
- * Enforce raster pixel budgets after rounding and reject oversized worker images with recoverable application errors.
- * Allow closing a worker renderer to interrupt a blocked render request, and align the documented host/worker limits.
-
- * Add `Metadata` and optional `MetadataProvider` support to built-in renderers. SVG workers return bounded, versioned metadata in `svg-open`; worker loads no longer parse XML in the host, including on failure. Legacy custom renderers retain host metadata scanning.
-
- * Migrate browser demos and the asset tool from `github.com/NimbleMarkets/go-booba` to `nimbleterminal.dev/booba` v0.12.1.
- * Validate and ignore the new `ntwebterm/` browser runtime assets and include them in site cleanup.
- * Upgrade `ntpicture` to v0.1.5, pin `ntmediabox` v0.1.0 and `ntconfine` v0.1.1, and remove sibling-checkout dependency replacements.
- * Add a buildable SVG worker example and document `WorkerRendererFactory`, worker lifecycle, and platform confinement requirements.
+ * Add opt-in SVG parsing and rasterization in an OS-confined `ntmediabox` worker through `WorkerRendererFactory`, `WorkerConfig`, `ServeWorker`, and `ServeWorkerWithFactory`.
+ * Add `Metadata` and the optional `MetadataProvider` renderer interface. Built-in renderers supply InfoMode summaries; workers return bounded, versioned metadata without host XML parsing or host fallback on worker failure. Existing custom renderers retain host metadata scanning.
+ * Add the `ntsvg-worker` example to `task build-examples` and document host/worker limits, platform setup, lifecycle, and the requirement to build host and worker from the same release.
+ * Preserve usable renderers and partial metadata on SVG parse errors, including bounded diagnostics across the worker protocol. Compact oversized metadata strings and histograms while rejecting invalid worker replies.
+ * Use one finite viewBox for metadata, raster fitting, and drawing. Preserve valid dimensions when origins are non-finite, support exponent notation in root dimensions, and normalize the viewport before parsing percentage geometry.
+ * Enforce pixel budgets after rounding and return recoverable errors for oversized worker images. Allow `Close` to interrupt blocked rendering immediately.
+ * Upgrade `nimbleterminal.dev/ntpicture` to v0.1.5, pin `nimbleterminal.dev/ntmediabox` v0.1.0 and `nimbleterminal.dev/ntconfine` v0.1.1, and remove sibling-checkout dependency replacements.
+ * Migrate browser demos and the asset tool to `nimbleterminal.dev/booba` v0.12.1, including validation and cleanup of its `ntwebterm/` browser assets.
 
 ## v0.5.5 (2026-10-30)
 
