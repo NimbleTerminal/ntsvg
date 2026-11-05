@@ -174,8 +174,10 @@ in the `svg-open` response's `Meta` field. Metadata is limited to 1 MiB, 4096
 histogram entries, 256 bytes per element name, 4096 bytes per declared size,
 and 4096 runes per title or description. Extracted document strings are clipped
 to these caps; histogram names are clipped and merged, with excess detail
-combined in an `[other]` bucket so totals remain accurate. Invalid declared
-view boxes fall back to finite declared dimensions or the SVG default.
+combined in an `[other]` bucket so totals remain accurate. Non-finite origin
+coordinates become zero while usable viewBox dimensions are retained. Invalid
+viewBox dimensions fall back to finite declared dimensions or the SVG default;
+metadata and rasterization use the same resolved geometry.
 An optional bounded `warning` field preserves partial parse diagnostics while
 keeping a usable renderer open. The host rejects unsupported versions,
 non-finite or nonpositive dimensions, negative counts, and inconsistent totals.

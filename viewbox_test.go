@@ -1,0 +1,87 @@
+package ntsvg
+
+import (
+	"bytes"
+	"fmt"
+	"image"
+	"testing"
+)
+
+var viewBoxFallbackCases = []struct {
+	name, attrs string
+	want        [4]float64
+}{
+	{"nan x", `viewBox="NaN 0 100 10"`, [4]float64{0, 0, 100, 10}},
+	{"infinite y", `viewBox="0 +Inf 100 10"`, [4]float64{0, 0, 100, 10}},
+	{"invalid x preserves y", `viewBox="NaN 2 100 10"`, [4]float64{0, 2, 100, 10}},
+	{"nan width uses attributes", `viewBox="0 0 NaN 10" width="100" height="10"`, [4]float64{0, 0, 100, 10}},
+	{"infinite height uses attributes", `viewBox="0 0 100 +Inf" width="100" height="10"`, [4]float64{0, 0, 100, 10}},
+	{"zero width uses attributes", `viewBox="5 2 0 10" width="100" height="10"`, [4]float64{0, 0, 100, 10}},
+	{"invalid dimensions use default", `viewBox="0 0 NaN 10"`, [4]float64{0, 0, 300, 150}},
+	{"valid offset", `viewBox="5 2 100 10"`, [4]float64{5, 2, 100, 10}},
+}
+
+func checkViewBoxFallbacks(t *testing.T, factory RendererFactory) {
+	t.Helper()
+	for _, tc := range viewBoxFallbackCases {
+		t.Run(tc.name, func(t *testing.T) {
+			want := tc.want
+			rect := fmt.Sprintf(`<rect x="%g" y="%g" width="%g" height="%g" fill="#f00"/>`, want[0], want[1], want[2], want[3])
+			// The inner shape exposes incorrect scale/translation even when a
+			// full-viewBox background would cover the output under either transform.
+			rect += fmt.Sprintf(`<rect x="%g" y="%g" width="%g" height="%g" fill="#00f"/>`, want[0]+want[2]/4, want[1]+want[3]/4, want[2]/2, want[3]/2)
+			source := []byte(`<svg ` + tc.attrs + `>` + rect + `</svg>`)
+			msg := runLoadFromBytes(tc.name, source, 1, factory, Limits{})
+			loaded, ok := msg.(svgLoadedMsg)
+			if !ok || loaded.renderer == nil {
+				t.Fatalf("load = %#v", msg)
+			}
+			r := loaded.renderer
+			defer r.Close()
+			metadata := r.(MetadataProvider).Metadata()
+			if metadata.ViewBox != want {
+				t.Fatalf("metadata = %v, want %v", metadata.ViewBox, want)
+			}
+			w, h := r.ViewBox()
+			if w != want[2] || h != want[3] {
+				t.Fatalf("renderer = %gx%g, want %gx%g", w, h, want[2], want[3])
+			}
+			if dw, dh := loaded.doc.ViewBox(); dw != w || dh != h {
+				t.Fatalf("document = %gx%g, renderer = %gx%g", dw, dh, w, h)
+			}
+			canonical := fmt.Sprintf(`<svg viewBox="%g %g %g %g">%s</svg>`, want[0], want[1], want[2], want[3], rect)
+			reference, err := DefaultRendererFactory()("reference", []byte(canonical))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer reference.Close()
+			for _, region := range []bool{false, true} {
+				render := func(r Renderer) (image.Image, error) {
+					if region {
+						return r.RenderRegion(64, 64, .25, .25, .5, .5)
+					}
+					return r.Render(64, 64)
+				}
+				got, err := render(r)
+				if err != nil {
+					t.Fatal(err)
+				}
+				expected, err := render(reference)
+				if err != nil {
+					t.Fatal(err)
+				}
+				gotRGBA, wantRGBA := got.(*image.RGBA), expected.(*image.RGBA)
+				if got.Bounds() != expected.Bounds() || !bytes.Equal(gotRGBA.Pix, wantRGBA.Pix) {
+					t.Fatalf("region=%v: bitmap %v differs from canonical %v", region, got.Bounds(), expected.Bounds())
+				}
+				if _, _, _, alpha := got.At(got.Bounds().Dx()/2, got.Bounds().Dy()/2).RGBA(); alpha == 0 {
+					t.Fatal("empty bitmap")
+				}
+			}
+		})
+	}
+}
+
+func TestDefaultRendererViewBoxFallbacks(t *testing.T) {
+	checkViewBoxFallbacks(t, DefaultRendererFactory())
+}

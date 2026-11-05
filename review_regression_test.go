@@ -168,3 +168,7 @@ func TestWorkerBoundsExtractedMetadata(t *testing.T) {
 		})
 	}
 }
+
+func TestWorkerViewBoxFallbacks(t *testing.T) {
+	checkViewBoxFallbacks(t, pipeWorkerFactory(Limits{}, nil))
+}

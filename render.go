@@ -91,15 +91,16 @@ func DefaultRendererFactoryWithImages(limits Limits, images map[string]image.Ima
 		if icon == nil {
 			return nil, fmt.Errorf("parse %q: %w", name, err)
 		}
+		// Use one resolved viewBox for metadata, fitting, and draw transforms.
+		// oksvg may retain a zero or partially parsed box after an invalid
+		// root attribute; repairing only vbW/vbH leaves SetTarget unscaled.
+		metadata := doc.metadata()
+		icon.ViewBox.X, icon.ViewBox.Y = metadata.ViewBox[0], metadata.ViewBox[1]
+		icon.ViewBox.W, icon.ViewBox.H = metadata.ViewBox[2], metadata.ViewBox[3]
 		vbW, vbH := icon.ViewBox.W, icon.ViewBox.H
-		if math.IsNaN(vbW) || math.IsNaN(vbH) || math.IsInf(vbW, 0) || math.IsInf(vbH, 0) || vbW <= 0 || vbH <= 0 {
-			// SVG spec default when a document declares neither a
-			// viewBox nor width/height.
-			vbW, vbH = 300, 150
-		}
 		r := &oksvgRenderer{
 			icon:      icon,
-			metadata:  doc.metadata(),
+			metadata:  metadata,
 			vbW:       vbW,
 			vbH:       vbH,
 			maxPixels: limits.MaxRenderPixels,

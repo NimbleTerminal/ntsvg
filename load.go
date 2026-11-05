@@ -324,26 +324,34 @@ func (d *Document) deriveSize() {
 	d.viewW, d.viewH = 300, 150
 }
 
-// parseViewBox parses an SVG viewBox ("min-x min-y width height").
+// parseViewBox reports usable intrinsic dimensions, even if an origin
+// coordinate needs repair. Invalid dimensions fall back through deriveSize.
 func parseViewBox(s string) (w, h float64, ok bool) {
+	box, ok := parseViewBoxRect(s)
+	return box[2], box[3], ok
+}
+
+// parseViewBoxRect retains finite, positive dimensions and replaces each
+// unusable origin coordinate with zero. Dimensions are never repaired here;
+// deriveSize chooses declared width/height or the SVG default instead.
+func parseViewBoxRect(s string) (box [4]float64, ok bool) {
 	fields := strings.FieldsFunc(s, func(r rune) bool {
 		return r == ' ' || r == ',' || r == '\t' || r == '\n'
 	})
 	if len(fields) != 4 {
-		return 0, 0, false
+		return box, false
 	}
-	for _, field := range fields {
+	for i, field := range fields {
 		v, err := strconv.ParseFloat(field, 64)
-		if err != nil || math.IsNaN(v) || math.IsInf(v, 0) {
-			return 0, 0, false
+		if err != nil || math.IsNaN(v) || math.IsInf(v, 0) || (i >= 2 && v <= 0) {
+			if i >= 2 {
+				return [4]float64{}, false
+			}
+			continue
 		}
+		box[i] = v
 	}
-	w, errW := strconv.ParseFloat(fields[2], 64)
-	h, errH := strconv.ParseFloat(fields[3], 64)
-	if errW != nil || errH != nil || w <= 0 || h <= 0 {
-		return 0, 0, false
-	}
-	return w, h, true
+	return box, true
 }
 
 // parseLength parses an SVG length, dropping any trailing unit suffix

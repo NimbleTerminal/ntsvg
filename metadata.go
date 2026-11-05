@@ -7,7 +7,6 @@ import (
 	"maps"
 	"math"
 	"slices"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -63,15 +62,8 @@ func (d *Document) metadata() Metadata {
 	if len(d.descs) > 0 {
 		m.Description = d.descs[0]
 	}
-	if _, _, ok := parseViewBox(d.viewBox); ok {
-		fields := strings.FieldsFunc(d.viewBox, func(r rune) bool {
-			return r == ' ' || r == ',' || r == '\t' || r == '\n'
-		})
-		x, ex := strconv.ParseFloat(fields[0], 64)
-		y, ey := strconv.ParseFloat(fields[1], 64)
-		if ex == nil && ey == nil {
-			m.ViewBox[0], m.ViewBox[1] = x, y
-		}
+	if box, ok := parseViewBoxRect(d.viewBox); ok {
+		m.ViewBox = box
 	}
 	return boundedDocumentMetadata(m)
 }

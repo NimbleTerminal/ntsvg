@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Share resolved viewBox geometry between metadata and rasterization, preserving valid dimensions when origins are non-finite and applying declared-size/default fallbacks to the rasterizer transform.
+
  * Preserve usable worker renderers and partial metadata on parse errors, returning bounded diagnostics without ending the session.
  * Bound extracted metadata before validation so unusual SVG attributes do not prevent rendering; keep rejecting invalid worker replies.
  * Enforce raster pixel budgets after rounding and reject oversized worker images with recoverable application errors.
