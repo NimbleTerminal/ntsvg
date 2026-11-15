@@ -8,7 +8,7 @@ require (
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/zkrebbekx/go-mermaid v0.1.6
 	nimbleterminal.dev/booba v0.12.1
-	nimbleterminal.dev/ntmediabox v0.1.0
+	nimbleterminal.dev/ntmediabox v0.2.0
 	nimbleterminal.dev/ntpicture v0.1.5
 	nimbleterminal.dev/ntsvg v0.6.0
 )
@@ -35,9 +35,9 @@ require (
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
-	nimbleterminal.dev/ntconfine v0.1.1 // indirect
-	nimbleterminal.dev/ntconfine/pkg/confine v0.1.0 // indirect
-	nimbleterminal.dev/ntmediabox/pkg/mediabox v0.1.0 // indirect
+	nimbleterminal.dev/ntconfine v0.2.0 // indirect
+	nimbleterminal.dev/ntconfine/pkg/confine v0.2.0 // indirect
+	nimbleterminal.dev/ntmediabox/pkg/mediabox v0.2.0 // indirect
 )
 
 replace nimbleterminal.dev/ntsvg => ..
