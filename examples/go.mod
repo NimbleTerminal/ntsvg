@@ -8,8 +8,8 @@ require (
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/zkrebbekx/go-mermaid v0.1.6
 	nimbleterminal.dev/booba v0.12.1
-	nimbleterminal.dev/ntmediabox v0.1.0
-	nimbleterminal.dev/ntpicture v0.1.5
+	nimbleterminal.dev/ntmediabox v0.2.0
+	nimbleterminal.dev/ntpicture v0.2.0
 	nimbleterminal.dev/ntsvg v0.6.0
 )
 
@@ -29,15 +29,15 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef // indirect
-	github.com/xo/terminfo v1.3.0 // indirect
-	golang.org/x/image v0.47.0 // indirect
+	github.com/xo/terminfo v1.3.1 // indirect
+	golang.org/x/image v0.48.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
-	golang.org/x/text v0.43.0 // indirect
-	nimbleterminal.dev/ntconfine v0.1.1 // indirect
-	nimbleterminal.dev/ntconfine/pkg/confine v0.1.0 // indirect
-	nimbleterminal.dev/ntmediabox/pkg/mediabox v0.1.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
+	golang.org/x/sys v0.50.0 // indirect
+	golang.org/x/text v0.44.0 // indirect
+	nimbleterminal.dev/ntconfine v0.2.0 // indirect
+	nimbleterminal.dev/ntconfine/pkg/confine v0.2.0 // indirect
+	nimbleterminal.dev/ntmediabox/pkg/mediabox v0.2.0 // indirect
 )
 
 replace nimbleterminal.dev/ntsvg => ..
