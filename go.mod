@@ -7,7 +7,7 @@ retract [v0.1.0, v0.4.0]
 
 require (
 	charm.land/bubbles/v2 v2.2.1
-	charm.land/bubbletea/v2 v2.1.1
+	charm.land/bubbletea/v2 v2.1.2
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/NimbleMarkets/oksvg v0.1.5
 	github.com/charmbracelet/x/ansi v0.11.9
