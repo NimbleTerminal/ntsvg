@@ -7,7 +7,7 @@ require (
 	charm.land/bubbletea/v2 v2.1.1
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/zkrebbekx/go-mermaid v0.1.6
-	nimbleterminal.dev/booba v0.12.1
+	nimbleterminal.dev/booba v0.13.0
 	nimbleterminal.dev/ntmediabox v0.1.0
 	nimbleterminal.dev/ntpicture v0.1.5
 	nimbleterminal.dev/ntsvg v0.6.0
